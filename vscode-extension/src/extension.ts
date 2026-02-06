@@ -2,6 +2,9 @@ import * as vscode from 'vscode';
 import { TmuxSessionProvider, TmuxSession } from './sessionProvider';
 import * as tmux from './tmux';
 
+// Track terminals for each session
+const sessionTerminals = new Map<string, vscode.Terminal>();
+
 export async function activate(context: vscode.ExtensionContext) {
   // Check dependencies
   const hasTmux = await tmux.isTmuxAvailable();
@@ -33,6 +36,16 @@ export async function activate(context: vscode.ExtensionContext) {
   // Register tree view
   vscode.window.registerTreeDataProvider('tmuxSessionsView', sessionProvider);
 
+  // Clean up terminal tracking when terminals are closed
+  vscode.window.onDidCloseTerminal(terminal => {
+    for (const [sessionName, term] of sessionTerminals.entries()) {
+      if (term === terminal) {
+        sessionTerminals.delete(sessionName);
+        break;
+      }
+    }
+  });
+
   // Refresh command
   context.subscriptions.push(
     vscode.commands.registerCommand('tmux.refresh', () => {
@@ -40,7 +53,7 @@ export async function activate(context: vscode.ExtensionContext) {
     })
   );
 
-  // Attach to session
+  // Attach to session (or switch to existing terminal)
   context.subscriptions.push(
     vscode.commands.registerCommand('tmux.attach', async (session?: TmuxSession) => {
       let sessionName = session?.name;
@@ -58,12 +71,57 @@ export async function activate(context: vscode.ExtensionContext) {
         sessionName = picked;
       }
 
+      // Check if terminal already exists for this session
+      const existingTerminal = sessionTerminals.get(sessionName);
+      if (existingTerminal) {
+        // Switch to existing terminal
+        existingTerminal.show();
+        return;
+      }
+
+      // Create new terminal
       const terminal = vscode.window.createTerminal({
         name: `tmux: ${sessionName}`,
         shellPath: '/bin/bash',
         shellArgs: ['-c', `tmux attach-session -t "${sessionName}"`]
       });
+
+      sessionTerminals.set(sessionName, terminal);
       terminal.show();
+    })
+  );
+
+  // Detach from session
+  context.subscriptions.push(
+    vscode.commands.registerCommand('tmux.detach', async (session?: TmuxSession) => {
+      let sessionName = session?.name;
+
+      if (!sessionName) {
+        // Get all attached sessions
+        const allSessions = await tmux.listSessionsWithInfo();
+        const attachedSessions = allSessions.filter(s => s.attached).map(s => s.name);
+
+        if (attachedSessions.length === 0) {
+          vscode.window.showInformationMessage('No attached sessions');
+          return;
+        }
+
+        const picked = await vscode.window.showQuickPick(attachedSessions, {
+          placeHolder: 'Select session to detach'
+        });
+        if (!picked) return;
+        sessionName = picked;
+      }
+
+      // Find and close the terminal
+      const terminal = sessionTerminals.get(sessionName);
+      if (terminal) {
+        terminal.dispose();
+        sessionTerminals.delete(sessionName);
+      }
+
+      sessionProvider.refresh();
+      vscode.window.showInformationMessage(`Detached from session "${sessionName}"`);
     })
   );
 
@@ -86,6 +144,8 @@ export async function activate(context: vscode.ExtensionContext) {
         shellArgs: ['-c', `tmux new-session -s "${name}"${workingDir ? ` -c "${workingDir}"` : ''}`],
         cwd: workingDir
       });
+
+      sessionTerminals.set(name, terminal);
       terminal.show();
 
       // Refresh after a short delay to show new session
@@ -112,6 +172,8 @@ export async function activate(context: vscode.ExtensionContext) {
         shellArgs: ['-c', `tmux new-session -s "${name}"${workingDir ? ` -c "${workingDir}"` : ''} "claude; exec $SHELL"`],
         cwd: workingDir
       });
+
+      sessionTerminals.set(name, terminal);
       terminal.show();
 
       // Refresh after a short delay to show new session
@@ -138,6 +200,13 @@ export async function activate(context: vscode.ExtensionContext) {
         'Yes', 'No'
       );
       if (confirm !== 'Yes') return;
+
+      // Close terminal if exists
+      const terminal = sessionTerminals.get(sessionName);
+      if (terminal) {
+        terminal.dispose();
+        sessionTerminals.delete(sessionName);
+      }
 
       await tmux.killSession(sessionName);
       sessionProvider.refresh();

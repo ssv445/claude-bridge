@@ -54,6 +54,10 @@
       {
         "command": "tmux.kill",
         "title": "Kill Session"
+      },
+      {
+        "command": "tmux.detach",
+        "title": "Detach from Session"
       }
     ],
     "menus": {
@@ -77,6 +81,10 @@
           "command": "tmux.attach",
           "when": "view == tmuxSessionsView && viewItem == session",
           "group": "inline"
+        },
+        {
+          "command": "tmux.detach",
+          "when": "view == tmuxSessionsView && viewItem == session"
         },
         {
           "command": "tmux.kill",
