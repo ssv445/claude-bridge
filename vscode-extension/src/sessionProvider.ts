@@ -18,7 +18,12 @@ export class TmuxSession extends vscode.TreeItem {
       ? workingDir.replace(/^\/Users\/[^/]+/, '~')
       : '';
 
-    this.description = projectName || `${windows} window${windows > 1 ? 's' : ''}`;
+    // Only show directory if different from session name
+    if (projectName && projectName !== name) {
+      this.description = projectName;
+    } else {
+      this.description = `${windows} window${windows > 1 ? 's' : ''}`;
+    }
     this.tooltip = [
       `Session: ${name}`,
       `Directory: ${dirDisplay || 'N/A'}`,
