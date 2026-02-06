@@ -1,6 +1,10 @@
 #!/bin/bash
 # claude-session (cs) - Launch Claude in a tmux session
-# Usage: cs [session-name]
+# Usage: cs [session-name] [-- claude-args...]
+#   cs                    # Auto-detect session from directory
+#   cs my-session         # Use specific session name
+#   cs -- --model opus    # Pass args to claude
+#   cs my-session -- --help  # Custom session + claude args
 
 set -e
 
@@ -19,10 +23,26 @@ fi
 
 PROJECT_NAME=$(basename "$PWD")
 
-# Allow custom session name as argument
-if [ -n "$1" ]; then
+# Parse arguments to separate session name from claude args
+SESSION_NAME=""
+CLAUDE_ARGS=""
+
+# Check if -- separator exists
+if [[ "$*" == *" -- "* ]]; then
+    # Split on --
+    BEFORE_SEP="${*%% -- *}"
+    AFTER_SEP="${*#* -- }"
+
+    if [ -n "$BEFORE_SEP" ]; then
+        SESSION_NAME="$BEFORE_SEP"
+    fi
+    CLAUDE_ARGS="$AFTER_SEP"
+elif [ -n "$1" ]; then
     SESSION_NAME="$1"
-else
+fi
+
+# If no session name provided, detect from directory
+if [ -z "$SESSION_NAME" ]; then
     # Get existing sessions matching this project (using tmux directly)
     SESSIONS=$(tmux list-sessions -F "#{session_name}" 2>/dev/null | grep "^${PROJECT_NAME}" || true)
 
@@ -71,6 +91,11 @@ if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
     tmux attach-session -t "$SESSION_NAME"
 else
     # Create new session with Claude (falls back to shell when Claude exits)
-    echo -e "${GREEN}Creating session with Claude: $SESSION_NAME${NC}"
-    tmux new-session -s "$SESSION_NAME" -c "$PWD" "claude; exec $SHELL"
+    if [ -n "$CLAUDE_ARGS" ]; then
+        echo -e "${GREEN}Creating session with Claude: $SESSION_NAME (args: $CLAUDE_ARGS)${NC}"
+        tmux new-session -s "$SESSION_NAME" -c "$PWD" "claude $CLAUDE_ARGS; exec $SHELL"
+    else
+        echo -e "${GREEN}Creating session with Claude: $SESSION_NAME${NC}"
+        tmux new-session -s "$SESSION_NAME" -c "$PWD" "claude; exec $SHELL"
+    fi
 fi
