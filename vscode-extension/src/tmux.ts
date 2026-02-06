@@ -9,6 +9,7 @@ export interface SessionInfo {
   attached: boolean;
   created: string;
   workingDir: string;
+  lastActivity: string;
 }
 
 export async function listSessions(): Promise<string[]> {
@@ -22,19 +23,20 @@ export async function listSessions(): Promise<string[]> {
 
 export async function listSessionsWithInfo(): Promise<SessionInfo[]> {
   try {
-    // Format: name|windows|attached|created|path
+    // Format: name|windows|attached|created|path|activity
     const { stdout } = await execAsync(
-      'tmux list-sessions -F "#{session_name}|#{session_windows}|#{session_attached}|#{session_created}|#{session_path}"'
+      'tmux list-sessions -F "#{session_name}|#{session_windows}|#{session_attached}|#{session_created}|#{session_path}|#{session_activity}"'
     );
 
     const sessions = stdout.trim().split('\n').filter(Boolean).map(line => {
-      const [name, windows, attached, created, sessionPath] = line.split('|');
+      const [name, windows, attached, created, sessionPath, activity] = line.split('|');
       return {
         name,
         windows: parseInt(windows, 10),
         attached: attached === '1',
         created: new Date(parseInt(created, 10) * 1000).toLocaleString(),
-        workingDir: sessionPath || ''
+        workingDir: sessionPath || '',
+        lastActivity: activity ? formatLastActivity(parseInt(activity, 10)) : ''
       };
     });
 
@@ -109,4 +111,14 @@ export async function isTmuxResurrectAvailable(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+function formatLastActivity(timestamp: number): string {
+  const now = Math.floor(Date.now() / 1000);
+  const diff = now - timestamp;
+
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
 }
