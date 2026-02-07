@@ -101,9 +101,41 @@ export function TerminalView({
 
   // Keyboard state
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [clipboardStatus, setClipboardStatus] = useState<{ copy?: string; paste?: string }>({});
 
   const sendKey = useCallback((key: string) => {
     wsRef.current?.send(key);
+  }, []);
+
+  const handleCopy = useCallback(async () => {
+    const selection = xtermRef.current?.getSelection();
+    if (!selection) {
+      setClipboardStatus({ copy: 'No selection' });
+      setTimeout(() => setClipboardStatus((s) => ({ ...s, copy: undefined })), 1500);
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(selection);
+      setClipboardStatus({ copy: 'Copied!' });
+    } catch {
+      setClipboardStatus({ copy: 'Failed' });
+    }
+    setTimeout(() => setClipboardStatus((s) => ({ ...s, copy: undefined })), 1500);
+  }, []);
+
+  const handlePaste = useCallback(async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text && wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(text);
+        setClipboardStatus({ paste: 'Pasted!' });
+      } else {
+        setClipboardStatus({ paste: 'Empty' });
+      }
+    } catch {
+      setClipboardStatus({ paste: 'Failed' });
+    }
+    setTimeout(() => setClipboardStatus((s) => ({ ...s, paste: undefined })), 1500);
   }, []);
 
   // Blur terminal when virtual keyboard is shown to prevent mobile keyboard
@@ -298,6 +330,29 @@ export function TerminalView({
 
           {/* Keyboard sections - scrollable container */}
           <div className="flex flex-col gap-2 px-2 py-2 overflow-y-auto max-h-72">
+            {/* Clipboard section — custom handlers, not part of KEYBOARD_SECTIONS */}
+            <div className="flex flex-col gap-1">
+              <div className="text-[10px] text-muted font-semibold uppercase tracking-wider px-1">
+                Clipboard
+              </div>
+              <div className="flex gap-1">
+                <button
+                  onClick={handleCopy}
+                  title="Copy terminal selection to clipboard"
+                  className="px-2.5 py-1.5 min-w-[44px] rounded text-xs font-mono shrink-0 transition-colors border border-blue-500/40 bg-input-bg hover:bg-surface-hover text-blue-400 active:bg-blue-700 active:text-white"
+                >
+                  {clipboardStatus.copy ?? 'Copy'}
+                </button>
+                <button
+                  onClick={handlePaste}
+                  title="Paste clipboard into terminal"
+                  className="px-2.5 py-1.5 min-w-[44px] rounded text-xs font-mono shrink-0 transition-colors border border-blue-500/40 bg-input-bg hover:bg-surface-hover text-blue-400 active:bg-blue-700 active:text-white"
+                >
+                  {clipboardStatus.paste ?? 'Paste'}
+                </button>
+              </div>
+            </div>
+
             {KEYBOARD_SECTIONS.map((section) => (
               <div key={section.title} className="flex flex-col gap-1">
                 {/* Section label */}
