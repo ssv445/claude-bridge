@@ -1,7 +1,7 @@
-// Service worker for tmux-tunnel PWA
+// Service worker for claude-bridge PWA
 
 // Cache app shell on install
-const CACHE_NAME = 'tmux-tunnel-v1';
+const CACHE_NAME = 'claude-bridge-v1';
 const SHELL_URLS = ['/', '/manifest.json'];
 
 self.addEventListener('install', (event) => {
@@ -50,7 +50,7 @@ self.addEventListener('fetch', (event) => {
 
 // Push notification handler
 self.addEventListener('push', (event) => {
-  let data = { title: 'tmux-tunnel', body: 'Claude needs attention' };
+  let data = { title: 'claude-bridge', body: 'Claude needs attention' };
 
   if (event.data) {
     try {
@@ -65,7 +65,7 @@ self.addEventListener('push', (event) => {
       body: data.body,
       icon: '/icon-192.png',
       badge: '/icon-192.png',
-      tag: data.tag || 'tmux-tunnel',
+      tag: data.tag || 'claude-bridge',
       data: data,
       vibrate: [200, 100, 200],
     })

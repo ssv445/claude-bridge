@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
         ? 'Permission needed'
         : type === 'idle'
           ? 'Claude waiting'
-          : 'tmux-tunnel';
+          : 'claude-bridge';
 
     await sendPushToAll({
       title,

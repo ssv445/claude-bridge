@@ -1,6 +1,6 @@
 {
-  "name": "tmux-tunnel",
-  "short_name": "tmux",
+  "name": "claude-bridge",
+  "short_name": "claude",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#09090b",

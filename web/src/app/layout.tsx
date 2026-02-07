@@ -3,12 +3,12 @@ import './globals.css';
 import { PushRegistrar } from '@/components/PushRegistrar';
 
 export const metadata: Metadata = {
-  title: 'tmux-tunnel',
-  description: 'Remote tmux session management',
+  title: 'claude-bridge',
+  description: 'Remote Claude Code session management',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
-    title: 'tmux-tunnel',
+    title: 'claude-bridge',
     statusBarStyle: 'black-translucent',
   },
 };

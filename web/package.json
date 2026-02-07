@@ -1,5 +1,5 @@
 {
-  "name": "tmux-tunnel-web",
+  "name": "claude-bridge-web",
   "version": "1.0.0",
   "private": true,
   "scripts": {

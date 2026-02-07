@@ -11,7 +11,7 @@ const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || '';
 
 if (VAPID_PUBLIC && VAPID_PRIVATE) {
   webpush.setVapidDetails(
-    'mailto:tmux-tunnel@localhost',
+    'mailto:claude-bridge@localhost',
     VAPID_PUBLIC,
     VAPID_PRIVATE
   );

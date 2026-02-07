@@ -1,48 +1,51 @@
-# tmux-tunnel
+# claude-bridge
 
-Run Claude Code from your phone. No public servers, no latency hacks - just your Mac, tmux, and a private Tailscale network.
+Never leave Claude Code waiting. Access your sessions from terminal, VS Code, browser, or phone - same session, any device, zero interruption.
 
 ## The Problem
 
-You're away from your desk but need to check on a Claude Code session, give it a quick instruction, or start a new one. VS Code tunnels work but are clunky on mobile. SSH from your phone is possible but painful to set up securely.
+Claude Code runs a 10-minute task, hits a question, and blocks. You're on the couch, in a meeting, or grabbing coffee. By the time you're back at your desk, you've lost 20 minutes of momentum on a 2-second approval.
 
-## What This Does
+The underlying issue: Claude Code sessions are tied to whichever terminal spawned them. Close the tab, lose the session. Walk away from the machine, no way to respond.
 
-tmux-tunnel gives you a web-based terminal that connects to tmux sessions on your Mac, accessible from any device on your Tailscale network.
+## The Solution
+
+claude-bridge decouples sessions from any single interface. A Claude Code session runs inside tmux on your Mac. You connect to it from whatever is in front of you right now.
 
 ```
-iPhone (PWA)  ──┐
-iPad (Safari) ──┤  Tailscale    ┌─────────────────────┐
-Laptop (SSH)  ──┼─────────────> │  Mac                 │
-                │  private net  │  tmux                │
-                │               │   ├─ my-app (claude) │
-                │               │   ├─ api (claude)    │
-                │               │   └─ scripts (bash)  │
-                │               └─────────────────────┘
+Desktop terminal  ──┐
+VS Code           ──┤                ┌─────────────────────┐
+Browser (PWA)     ──┼── Tailscale ──>│  Mac                 │
+Phone (PWA)       ──┤   private net  │  tmux                │
+SSH (Terminus)    ──┘                │   ├─ my-app (claude) │
+                                     │   ├─ api (claude)    │
+                                     │   └─ scripts (bash)  │
+                                     └─────────────────────┘
 ```
 
-**What you get:**
-- Start and manage Claude Code sessions from anywhere
-- Sessions persist across disconnects - pick up where you left off
-- PWA on iOS for an app-like experience (no Safari chrome)
-- SSH fallback via Terminus for a native terminal option
-- Everything stays on your private network - nothing exposed to the internet
+The session is the same across all channels. Start something on your desktop, approve a prompt from your phone, review the result back on your laptop. No context lost, no session restarts.
+
+**How it works:**
+- **tmux** keeps sessions alive independent of any client connection
+- **Next.js + xterm.js + WebSocket** serves a browser-based terminal that attaches to tmux sessions
+- **Tailscale** creates a private network between your devices - nothing exposed to the internet
+- **PWA** makes the web terminal installable on iOS with no browser chrome
 
 ## Components
 
 | Path | What |
 |---|---|
-| `web/` | Next.js web app with xterm.js terminal + WebSocket server |
+| `web/` | Next.js app + WebSocket server. node-pty spawns tmux attach, pipes I/O over ws to xterm.js |
 | `scripts/cld.sh` | CLI to launch Claude Code in tmux with `--dangerously-skip-permissions --chrome` |
-| `scripts/tmux.conf` | tmux config with session persistence (resurrect + continuum) |
-| `vscode/profiles/` | Touch-optimized VS Code profile for mobile |
+| `scripts/tmux.conf` | tmux config with resurrect + continuum for session persistence across reboots |
 | `vscode/extension/` | VS Code sidebar for tmux session management |
+| `vscode/profiles/` | Touch-optimized VS Code profile for mobile |
 
 ## Quick Start
 
 ```sh
 # 1. Set up the cld alias
-echo 'alias cld="/path/to/tmux-tunnel/scripts/cld.sh"' >> ~/.zshrc
+echo 'alias cld="/path/to/claude-bridge/scripts/cld.sh"' >> ~/.zshrc
 source ~/.zshrc
 
 # 2. Start a Claude session
@@ -61,12 +64,12 @@ tailscale serve --bg 3100
 
 ## Full Setup
 
-See **[SETUP.md](SETUP.md)** for the complete guide:
+See **[SETUP.md](SETUP.md)** for the complete walkthrough:
 - Installing Tailscale on Mac and iOS
 - Configuring tmux with session persistence
 - Setting up the `cld` alias
 - Running the web service
-- SSH backup via Terminus
+- SSH fallback via Terminus
 - Installing the PWA on iOS
 
 ## License

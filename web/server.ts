@@ -119,6 +119,6 @@ app.prepare().then(() => {
   });
 
   server.listen(port, hostname, () => {
-    console.log(`> tmux-tunnel ready on http://${hostname}:${port}`);
+    console.log(`> claude-bridge ready on http://${hostname}:${port}`);
   });
 });

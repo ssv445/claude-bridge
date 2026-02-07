@@ -1,6 +1,6 @@
-# tmux-tunnel
+# claude-bridge
 
-Access Claude Code sessions from your phone over a private Tailscale network.
+A bridge between you and your Claude Code sessions, from any device over a private Tailscale network.
 
 ## Purpose
 
@@ -11,7 +11,7 @@ Web-based terminal UI + CLI tooling to manage tmux sessions (especially Claude C
 ## Components
 
 ```
-tmux-tunnel/
+claude-bridge/
 ├── web/                      # Next.js app + WebSocket server (port 3100)
 │   ├── server.ts             # Custom server with node-pty + ws
 │   ├── src/app/              # Next.js pages (session list, terminal)

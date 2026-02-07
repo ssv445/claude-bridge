@@ -89,7 +89,7 @@ export default function Home() {
   const sidebar = (
     <>
       <div className="flex items-center justify-between px-4 py-4 border-b border-border">
-        <h1 className="text-sm font-bold tracking-tight">tmux-tunnel</h1>
+        <h1 className="text-sm font-bold tracking-tight">claude-bridge</h1>
         <div className="flex items-center gap-1.5">
           <button
             onClick={toggleTheme}
@@ -191,7 +191,7 @@ export default function Home() {
             {activeTab ? (
               <span className="text-sm font-mono truncate block">{activeTab}</span>
             ) : (
-              <span className="text-sm font-bold tracking-tight">tmux-tunnel</span>
+              <span className="text-sm font-bold tracking-tight">claude-bridge</span>
             )}
           </div>
           <div className="flex items-center gap-1 shrink-0 mr-1">

@@ -1,6 +1,6 @@
 # Setup Guide
 
-Complete guide to run Claude Code sessions from your phone using tmux-tunnel.
+Complete guide to run Claude Code sessions from your phone using claude-bridge.
 
 **How it works:** Your Mac runs tmux sessions with Claude Code. A Next.js web app exposes those sessions over WebSocket. Tailscale creates a private network so you can access it from your phone without exposing anything to the public internet.
 
@@ -84,7 +84,7 @@ Add an alias to your shell config (`~/.zshrc` or `~/.bashrc`):
 
 ```sh
 # Add this line to ~/.zshrc
-alias cld="/path/to/tmux-tunnel/scripts/cld.sh"
+alias cld="/path/to/claude-bridge/scripts/cld.sh"
 ```
 
 Then reload:
@@ -210,7 +210,7 @@ The PWA runs in standalone mode (no Safari chrome) with a dark theme optimized f
 
 **`cld` command not found**
 - Ensure the alias is in your `~/.zshrc` and you've run `source ~/.zshrc`
-- Check the script is executable: `chmod +x /path/to/tmux-tunnel/scripts/cld.sh`
+- Check the script is executable: `chmod +x /path/to/claude-bridge/scripts/cld.sh`
 
 **tmux plugins not loading**
 - Run `prefix + I` inside tmux to install plugins via TPM
