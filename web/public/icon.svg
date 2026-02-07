@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <!-- Suspension bridge: two towers, catenary cable, road deck -->
+  <!-- Tower left -->
+  <line x1="148" y1="140" x2="148" y2="360" stroke="#da7756" stroke-width="34" stroke-linecap="round"/>
+  <!-- Tower right -->
+  <line x1="364" y1="140" x2="364" y2="360" stroke="#da7756" stroke-width="34" stroke-linecap="round"/>
+  <!-- Main catenary cable between tower tops -->
+  <path d="M148,158 Q256,280 364,158" stroke="#c4644a" stroke-width="22" stroke-linecap="round" fill="none"/>
+  <!-- Suspension cables from catenary to deck -->
+  <line x1="190" y1="195" x2="190" y2="310" stroke="#c4644a" stroke-width="10" stroke-linecap="round"/>
+  <line x1="232" y1="224" x2="232" y2="310" stroke="#c4644a" stroke-width="10" stroke-linecap="round"/>
+  <line x1="256" y1="236" x2="256" y2="310" stroke="#c4644a" stroke-width="10" stroke-linecap="round"/>
+  <line x1="280" y1="224" x2="280" y2="310" stroke="#c4644a" stroke-width="10" stroke-linecap="round"/>
+  <line x1="322" y1="195" x2="322" y2="310" stroke="#c4644a" stroke-width="10" stroke-linecap="round"/>
+  <!-- Road deck -->
+  <line x1="80" y1="310" x2="432" y2="310" stroke="#da7756" stroke-width="28" stroke-linecap="round"/>
+  <!-- Tower caps (lighter highlight) -->
+  <line x1="128" y1="140" x2="168" y2="140" stroke="#e8956d" stroke-width="18" stroke-linecap="round"/>
+  <line x1="344" y1="140" x2="384" y2="140" stroke="#e8956d" stroke-width="18" stroke-linecap="round"/>
+</svg>

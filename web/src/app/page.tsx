@@ -89,7 +89,22 @@ export default function Home() {
   const sidebar = (
     <>
       <div className="flex items-center justify-between px-4 py-4 border-b border-border">
-        <h1 className="text-sm font-bold tracking-tight">claude-bridge</h1>
+        <h1 className="text-sm font-bold tracking-tight flex items-center gap-1.5">
+          <svg className="w-5 h-5 shrink-0" viewBox="0 0 512 512" fill="none">
+            <line x1="148" y1="140" x2="148" y2="360" stroke="#da7756" strokeWidth="34" strokeLinecap="round"/>
+            <line x1="364" y1="140" x2="364" y2="360" stroke="#da7756" strokeWidth="34" strokeLinecap="round"/>
+            <path d="M148,158 Q256,280 364,158" stroke="#c4644a" strokeWidth="22" strokeLinecap="round" fill="none"/>
+            <line x1="190" y1="195" x2="190" y2="310" stroke="#c4644a" strokeWidth="10" strokeLinecap="round"/>
+            <line x1="232" y1="224" x2="232" y2="310" stroke="#c4644a" strokeWidth="10" strokeLinecap="round"/>
+            <line x1="256" y1="236" x2="256" y2="310" stroke="#c4644a" strokeWidth="10" strokeLinecap="round"/>
+            <line x1="280" y1="224" x2="280" y2="310" stroke="#c4644a" strokeWidth="10" strokeLinecap="round"/>
+            <line x1="322" y1="195" x2="322" y2="310" stroke="#c4644a" strokeWidth="10" strokeLinecap="round"/>
+            <line x1="80" y1="310" x2="432" y2="310" stroke="#da7756" strokeWidth="28" strokeLinecap="round"/>
+            <line x1="128" y1="140" x2="168" y2="140" stroke="#e8956d" strokeWidth="18" strokeLinecap="round"/>
+            <line x1="344" y1="140" x2="384" y2="140" stroke="#e8956d" strokeWidth="18" strokeLinecap="round"/>
+          </svg>
+          claude-bridge
+        </h1>
         <div className="flex items-center gap-1.5">
           <button
             onClick={toggleTheme}
@@ -191,7 +206,22 @@ export default function Home() {
             {activeTab ? (
               <span className="text-sm font-mono truncate block">{activeTab}</span>
             ) : (
-              <span className="text-sm font-bold tracking-tight">claude-bridge</span>
+              <span className="text-sm font-bold tracking-tight flex items-center gap-1.5">
+                <svg className="w-4 h-4 shrink-0" viewBox="0 0 512 512" fill="none">
+                  <line x1="148" y1="140" x2="148" y2="360" stroke="#da7756" strokeWidth="34" strokeLinecap="round"/>
+                  <line x1="364" y1="140" x2="364" y2="360" stroke="#da7756" strokeWidth="34" strokeLinecap="round"/>
+                  <path d="M148,158 Q256,280 364,158" stroke="#c4644a" strokeWidth="22" strokeLinecap="round" fill="none"/>
+                  <line x1="190" y1="195" x2="190" y2="310" stroke="#c4644a" strokeWidth="10" strokeLinecap="round"/>
+                  <line x1="232" y1="224" x2="232" y2="310" stroke="#c4644a" strokeWidth="10" strokeLinecap="round"/>
+                  <line x1="256" y1="236" x2="256" y2="310" stroke="#c4644a" strokeWidth="10" strokeLinecap="round"/>
+                  <line x1="280" y1="224" x2="280" y2="310" stroke="#c4644a" strokeWidth="10" strokeLinecap="round"/>
+                  <line x1="322" y1="195" x2="322" y2="310" stroke="#c4644a" strokeWidth="10" strokeLinecap="round"/>
+                  <line x1="80" y1="310" x2="432" y2="310" stroke="#da7756" strokeWidth="28" strokeLinecap="round"/>
+                  <line x1="128" y1="140" x2="168" y2="140" stroke="#e8956d" strokeWidth="18" strokeLinecap="round"/>
+                  <line x1="344" y1="140" x2="384" y2="140" stroke="#e8956d" strokeWidth="18" strokeLinecap="round"/>
+                </svg>
+                claude-bridge
+              </span>
             )}
           </div>
           <div className="flex items-center gap-1 shrink-0 mr-1">
