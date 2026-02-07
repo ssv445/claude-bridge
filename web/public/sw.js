@@ -1,7 +1,8 @@
 // Service worker for claude-bridge PWA
+// v2 — bust after esbuild production build migration
 
 // Cache app shell on install
-const CACHE_NAME = 'claude-bridge';
+const CACHE_NAME = 'claude-bridge-v2';
 const SHELL_URLS = ['/', '/manifest.json'];
 
 self.addEventListener('install', (event) => {
