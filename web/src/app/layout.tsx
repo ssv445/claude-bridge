@@ -1,0 +1,42 @@
+import type { Metadata, Viewport } from 'next';
+import './globals.css';
+import { PushRegistrar } from '@/components/PushRegistrar';
+
+export const metadata: Metadata = {
+  title: 'tmux-tunnel',
+  description: 'Remote tmux session management',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    title: 'tmux-tunnel',
+    statusBarStyle: 'black-translucent',
+  },
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: '#09090b',
+};
+
+// Inline script to set theme class before first paint (no FOUC).
+// Content is a static string constant — no user input, safe from XSS.
+const themeScript = `(function(){try{var t=localStorage.getItem('tmux-theme');if(t==='light')document.body.classList.add('light')}catch(e){}})()`;
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en">
+      <body className="antialiased">
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        {children}
+        <PushRegistrar />
+      </body>
+    </html>
+  );
+}
