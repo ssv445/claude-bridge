@@ -9,12 +9,12 @@ const SUBS_FILE = join(DATA_DIR, 'subscriptions.json');
 const VAPID_PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '';
 const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || '';
 
-if (VAPID_PUBLIC && VAPID_PRIVATE) {
-  webpush.setVapidDetails(
-    'mailto:claude-bridge@localhost',
-    VAPID_PUBLIC,
-    VAPID_PRIVATE
-  );
+// VAPID subject: mailto: or https:// URL identifying the server operator.
+// Apple Push rejects invalid subjects (e.g. mailto:x@localhost).
+const VAPID_SUBJECT = process.env.VAPID_SUBJECT || '';
+
+if (VAPID_PUBLIC && VAPID_PRIVATE && VAPID_SUBJECT) {
+  webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
 }
 
 export interface PushSubscription {
@@ -60,8 +60,8 @@ export async function sendPushToAll(payload: {
   session?: string;
   tag?: string;
 }) {
-  if (!VAPID_PUBLIC || !VAPID_PRIVATE) {
-    console.warn('VAPID keys not configured, skipping push');
+  if (!VAPID_PUBLIC || !VAPID_PRIVATE || !VAPID_SUBJECT) {
+    console.warn('VAPID not configured (need VAPID_SUBJECT, NEXT_PUBLIC_VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY)');
     return;
   }
 

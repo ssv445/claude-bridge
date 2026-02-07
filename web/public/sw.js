@@ -77,7 +77,7 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
   const session = event.notification.data?.session;
-  const url = session ? `/?attach=${encodeURIComponent(session)}` : '/';
+  const url = session ? `/?session=${encodeURIComponent(session)}` : '/';
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window' }).then((clients) => {

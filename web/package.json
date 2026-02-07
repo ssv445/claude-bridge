@@ -6,7 +6,8 @@
     "postinstall": "chmod +x node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper 2>/dev/null || true",
     "dev": "tsx server.ts",
     "build": "next build",
-    "start": "NODE_ENV=production tsx server.ts"
+    "start": "NODE_ENV=production tsx server.ts",
+    "setup:push": "./scripts/setup-push.sh"
   },
   "dependencies": {
     "next": "^15.1.0",

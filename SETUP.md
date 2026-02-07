@@ -193,7 +193,82 @@ Logs are written to:
 - **stdout**: `/tmp/claude-bridge.log`
 - **stderr**: `/tmp/claude-bridge.err`
 
-## 6. Backup: SSH via Terminus
+## 6. Push Notifications (Optional)
+
+Get notified on your phone when Claude finishes a task or needs input — even when the PWA isn't open.
+
+### Setup
+
+```sh
+cd web/
+
+# Generate VAPID keys and save to .env.local
+npm run setup:push https://your-machine-name.tailnet-name.ts.net
+```
+
+Use your Tailscale HTTPS URL or a `mailto:` address as the VAPID subject (Apple rejects invalid values like `localhost`).
+
+Restart the server after setup:
+
+```sh
+npm run dev      # or: npm start (production)
+```
+
+### Enable on your phone
+
+1. Open the PWA from your Home Screen (must be HTTPS — use Tailscale serve URL, not raw IP)
+2. A banner will appear: **"Enable notifications?"**
+3. Tap **Enable** and allow when iOS prompts
+
+### Claude Code hooks
+
+Notifications are triggered by Claude Code's hook system. Add these hooks to `~/.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "Notification": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/path/to/claude-bridge/scripts/notify-bridge.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/path/to/claude-bridge/scripts/notify-bridge.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+This sends push notifications when:
+- **`Notification`** — Claude needs permission or is waiting for input
+- **`Stop`** — Claude finishes a task
+
+The hook script defaults to `http://localhost:3100`. Set `CLAUDE_BRIDGE_URL` in your shell profile to override.
+
+### Test
+
+```sh
+curl -X POST http://localhost:3100/api/notify \
+  -H "Content-Type: application/json" \
+  -d '{"type": "idle", "message": "Test notification", "session": "my-session"}'
+```
+
+## 7. Backup: SSH via Terminus
 
 If the web UI is down or you prefer a native terminal, use SSH as a fallback.
 
@@ -241,6 +316,8 @@ The PWA runs in standalone mode (no Safari chrome) with a dark theme optimized f
 | Start web server | `cd web && npm run dev` |
 | Tailscale serve | `tailscale serve --bg 3100` |
 | Stop Tailscale serve | `tailscale serve --bg off` |
+| Setup push notifications | `cd web && npm run setup:push <your-url>` |
+| Test push notification | `curl -X POST http://localhost:3100/api/notify -H 'Content-Type: application/json' -d '{"type":"idle","message":"test"}'` |
 | List tmux sessions | `tmux ls` |
 | Attach to session (SSH) | `tmux attach -t session-name` |
 | Mac Tailscale IP | `tailscale ip -4` |

@@ -10,7 +10,9 @@ export async function POST(req: NextRequest) {
         ? 'Permission needed'
         : type === 'idle'
           ? 'Claude waiting'
-          : 'claude-bridge';
+          : type === 'stop'
+            ? 'Task complete'
+            : 'claude-bridge';
 
     await sendPushToAll({
       title,
