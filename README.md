@@ -62,6 +62,10 @@ tailscale serve --bg 3100
 # https://your-machine.tailnet.ts.net/
 ```
 
+## Why This Approach?
+
+VS Code tunnels, webmux, and SSH were all tried first. See **[WHY.md](WHY.md)** for what failed, what worked, and the 2-hour Tailscale debugging rabbit hole.
+
 ## Full Setup
 
 See **[SETUP.md](SETUP.md)** for the complete walkthrough:
