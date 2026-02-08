@@ -46,6 +46,7 @@ claude-bridge/
 cd web && npm run dev          # Development (port 3100)
 cd web && npm run build        # Production build
 cd web && npm start            # Production server
+cd web && ./restart.sh         # Kill → clean build → start (recommended)
 
 # Tailscale
 tailscale serve --bg 3100      # Expose over Tailscale HTTPS
@@ -55,3 +56,36 @@ tailscale serve --bg off       # Stop serving
 cld                            # Launch Claude in tmux (needs alias)
 tmux ls                        # List sessions
 ```
+
+## Mobile Terminal Scrolling — Critical Architecture Notes
+
+### Scrollback lives in tmux, NOT xterm.js
+- xterm.js only holds the few lines it receives on screen. Historical output is in tmux's scrollback buffer.
+- `term.scrollLines()` is nearly useless — it only scrolls xterm's tiny local buffer.
+- To scroll tmux's buffer, send **SGR mouse wheel escape sequences** through the WebSocket:
+  - Scroll up: `\x1b[<64;1;1M`
+  - Scroll down: `\x1b[<65;1;1M`
+- tmux with `mouse on` auto-enters copy mode on scroll up — no manual copy mode management needed.
+
+### Claude Code consumes PgUp/PgDn
+- PgUp/PgDn escape sequences get eaten by Claude Code running inside tmux.
+- To scroll past Claude Code, use tmux prefix + `[` (`\x02[`) to enter copy mode first, then PgUp/PgDn.
+- The scroll buttons in the mobile UI use this approach as a fallback.
+
+### Touch event handling on iOS
+- xterm.js v5 sets `touch-action: none` on its canvas and may call `stopPropagation()` on touch events.
+- Use `{ capture: true }` on touch listeners to intercept events before xterm.js swallows them.
+- One-finger swipe is the natural iOS gesture (two-finger scroll is macOS trackpad only).
+- Call `term.blur()` on scroll start to dismiss iOS input accessories bar.
+- CSS `overflow: hidden; overscroll-behavior: none; position: fixed` on html/body prevents iOS page bounce.
+
+### Native keyboard handling
+- `window.visualViewport` resize event detects iOS native keyboard open/close.
+- Keyboard height = `window.innerHeight - visualViewport.height`.
+- Shrink the terminal container by keyboard height so the input line stays visible.
+- Call `fitAddon.fit()` after resize to refit terminal to the new available space.
+
+### Server restart procedure
+- Use `web/restart.sh` — it handles kill → wait for port → clean build → start with nohup.
+- `npm run dev` and `npm start` both use port 3100. Dev server child processes can linger after kill.
+- Always verify port is free before starting: `lsof -ti:3100 || echo "free"`

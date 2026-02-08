@@ -114,6 +114,7 @@ export function TerminalView({
   // Keyboard state
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [clipboardStatus, setClipboardStatus] = useState<{ copy?: string; paste?: string }>({});
+  const [nativeKeyboardHeight, setNativeKeyboardHeight] = useState(0);
 
   const sendKey = useCallback((key: string) => {
     wsRef.current?.send(key);
@@ -161,6 +162,25 @@ export function TerminalView({
       requestAnimationFrame(() => fitAddonRef.current?.fit());
     }
   }, [keyboardVisible]);
+
+  // Detect native mobile keyboard via visualViewport and refit terminal
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    function onViewportResize() {
+      // Keyboard height = difference between window and visual viewport
+      const kbHeight = Math.max(0, Math.round(window.innerHeight - vv!.height));
+      setNativeKeyboardHeight(kbHeight);
+      // Refit terminal to new available space
+      if (fitAddonRef.current) {
+        requestAnimationFrame(() => fitAddonRef.current?.fit());
+      }
+    }
+
+    vv.addEventListener('resize', onViewportResize);
+    return () => vv.removeEventListener('resize', onViewportResize);
+  }, []);
 
   // Update xterm theme when theme prop changes
   useEffect(() => {
@@ -254,6 +274,63 @@ export function TerminalView({
       xtermRef.current = term;
       fitAddonRef.current = fitAddon;
 
+      // Touch-to-scroll: send mouse wheel escape sequences to tmux.
+      // With `mouse on`, tmux enters copy mode on scroll up automatically.
+      // SGR mouse encoding (mode 1006): \x1b[<64;col;rowM = wheel up,
+      // \x1b[<65;col;rowM = wheel down. tmux handles the rest.
+      let touchStartY = 0;
+      let touchScrolling = false;
+      let touchAccumulator = 0;
+      const scrollSensitivity = 20; // px per scroll event
+
+      function onTouchStart(e: TouchEvent) {
+        if (e.touches.length !== 1) return;
+        touchStartY = e.touches[0].clientY;
+        touchScrolling = false;
+        touchAccumulator = 0;
+      }
+
+      function onTouchMove(e: TouchEvent) {
+        if (e.touches.length !== 1 || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+
+        const deltaY = touchStartY - e.touches[0].clientY;
+
+        // Threshold to distinguish swipes from taps
+        if (!touchScrolling && Math.abs(deltaY) < 15) return;
+
+        if (!touchScrolling) {
+          term.blur(); // dismiss iOS input accessories
+        }
+        touchScrolling = true;
+        e.preventDefault();
+        e.stopPropagation();
+
+        // Accumulate delta and send mouse wheel events
+        touchAccumulator += deltaY;
+        const events = Math.trunc(touchAccumulator / scrollSensitivity);
+        if (events !== 0) {
+          // SGR mouse wheel: 64 = up, 65 = down
+          // Positive deltaY = finger moved up = scroll up (older content)
+          const btn = events > 0 ? 65 : 64;
+          const count = Math.abs(events);
+          for (let i = 0; i < count; i++) {
+            wsRef.current.send(`\x1b[<${btn};1;1M`);
+          }
+          touchAccumulator -= events * scrollSensitivity;
+        }
+        touchStartY = e.touches[0].clientY;
+      }
+
+      function onTouchEnd() {
+        touchScrolling = false;
+        touchAccumulator = 0;
+      }
+
+      const termContainer = termRef.current;
+      termContainer.addEventListener('touchstart', onTouchStart, { capture: true, passive: true });
+      termContainer.addEventListener('touchmove', onTouchMove, { capture: true, passive: false });
+      termContainer.addEventListener('touchend', onTouchEnd, { capture: true, passive: true });
+
       // Use refs so handlers always send on the latest WS
       term.onData((data) => {
         if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -300,6 +377,9 @@ export function TerminalView({
       return () => {
         document.removeEventListener('visibilitychange', handleVisibilityChange);
         if (windowResizeHandler) window.removeEventListener('resize', windowResizeHandler);
+        termContainer.removeEventListener('touchstart', onTouchStart, { capture: true });
+        termContainer.removeEventListener('touchmove', onTouchMove, { capture: true });
+        termContainer.removeEventListener('touchend', onTouchEnd, { capture: true });
         term.dispose();
       };
     }
@@ -328,10 +408,12 @@ export function TerminalView({
 
   return (
     <div
-      className="h-dvh flex flex-col"
+      className="flex flex-col"
       style={{
         display: visible ? 'flex' : 'none',
         backgroundColor: XTERM_THEMES[theme].background,
+        // Shrink container when native mobile keyboard is open so input stays visible
+        height: nativeKeyboardHeight > 0 ? `calc(100dvh - ${nativeKeyboardHeight}px)` : '100dvh',
       }}
     >
       {/* Terminal + reconnect overlay */}
@@ -378,39 +460,52 @@ export function TerminalView({
         )}
       </div>
 
-      {/* Floating keyboard toggle button (FAB) - Mobile only */}
-      <button
-        onClick={() => setKeyboardVisible(!keyboardVisible)}
-        className="fixed right-4 w-14 h-14 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-lg flex items-center justify-center z-50 md:hidden transition-all active:scale-95"
-        style={{
-          // Move FAB up when keyboard is visible
-          bottom: keyboardVisible ? '324px' : '16px',
-        }}
-        title={keyboardVisible ? 'Hide keyboard' : 'Show keyboard'}
+      {/* Floating buttons - Mobile only */}
+      <div
+        className="fixed right-4 flex flex-col gap-2 z-50 md:hidden transition-all"
+        style={{ bottom: keyboardVisible ? '324px' : '16px' }}
       >
-        <svg
-          className="w-6 h-6"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
+        {/* Scroll up — Ctrl-B [ to enter tmux copy mode, then PgUp */}
+        <button
+          onClick={() => {
+            // Enter tmux copy mode (prefix + [), then page up
+            sendKey('\x02[');
+            setTimeout(() => sendKey('\x1b[5~'), 100);
+          }}
+          className="w-10 h-10 rounded-full bg-gray-700/80 text-white shadow-lg flex items-center justify-center active:scale-95 active:bg-gray-600"
+          title="Scroll up"
         >
-          {keyboardVisible ? (
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M19 9l-7 7-7-7"
-            />
-          ) : (
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M8 9l4-4 4 4m0 6l-4 4-4-4"
-            />
-          )}
-        </svg>
-      </button>
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+          </svg>
+        </button>
+
+        {/* Scroll down — PgDn if already in copy mode, or just send PgDn */}
+        <button
+          onClick={() => sendKey('\x1b[6~')}
+          className="w-10 h-10 rounded-full bg-gray-700/80 text-white shadow-lg flex items-center justify-center active:scale-95 active:bg-gray-600"
+          title="Scroll down"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+
+        {/* Keyboard toggle */}
+        <button
+          onClick={() => setKeyboardVisible(!keyboardVisible)}
+          className="w-14 h-14 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-lg flex items-center justify-center active:scale-95"
+          title={keyboardVisible ? 'Hide keyboard' : 'Show keyboard'}
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            {keyboardVisible ? (
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            ) : (
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
+            )}
+          </svg>
+        </button>
+      </div>
 
       {/* Fixed bottom keyboard - Mobile only */}
       {keyboardVisible && (
