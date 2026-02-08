@@ -74,6 +74,17 @@ export default function Home() {
     setSidebarOpen(false);
   }, []);
 
+  // Listen for service worker messages (notification tap → open session)
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'open-session' && event.data.session) {
+        attachSession(event.data.session);
+      }
+    };
+    navigator.serviceWorker?.addEventListener('message', onMessage);
+    return () => navigator.serviceWorker?.removeEventListener('message', onMessage);
+  }, [attachSession]);
+
   const detachSession = useCallback((name: string) => {
     setOpenTabs((prev) => {
       const next = prev.filter((t) => t !== name);

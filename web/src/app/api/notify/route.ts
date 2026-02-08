@@ -1,28 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sendPushToAll } from '@/lib/push';
 
-// Dedup: only send one notification per type+session within this window
-const DEDUP_WINDOW_MS = 5 * 60_000; // 5 minutes
-const recentNotifications = new Map<string, number>();
+// Dedup: only notify when the state changes per session.
+// e.g. idle→idle is suppressed, idle→stop→idle sends both stop and idle.
+const lastTypePerSession = new Map<string, string>();
 
 function isDuplicate(type: string, session: string): boolean {
-  const key = `${type}:${session}`;
-  const lastSent = recentNotifications.get(key);
-  const now = Date.now();
+  const lastType = lastTypePerSession.get(session);
 
-  if (lastSent && now - lastSent < DEDUP_WINDOW_MS) {
+  if (lastType === type) {
     return true;
   }
 
-  recentNotifications.set(key, now);
-
-  // Prune old entries to avoid unbounded growth
-  if (recentNotifications.size > 100) {
-    for (const [k, t] of recentNotifications) {
-      if (now - t > DEDUP_WINDOW_MS) recentNotifications.delete(k);
-    }
-  }
-
+  lastTypePerSession.set(session, type);
   return false;
 }
 

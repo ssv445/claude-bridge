@@ -80,7 +80,7 @@ self.addEventListener('push', (event) => {
   );
 });
 
-// Tap notification → open app
+// Tap notification → open app and switch to the session
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
@@ -89,15 +89,15 @@ self.addEventListener('notificationclick', (event) => {
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window' }).then((clients) => {
-      // Focus existing window if open
+      // If app is already open, message it to switch sessions (no reload)
       for (const client of clients) {
         if (client.url.includes(self.location.origin)) {
           client.focus();
-          if (session) client.navigate(url);
+          if (session) client.postMessage({ type: 'open-session', session });
           return;
         }
       }
-      // Otherwise open new window
+      // Otherwise open new window with session param
       return self.clients.openWindow(url);
     })
   );
