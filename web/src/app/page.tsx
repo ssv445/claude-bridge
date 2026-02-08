@@ -174,6 +174,10 @@ export default function Home() {
           onRefresh={() => setRefreshKey((k) => k + 1)}
         />
       </div>
+      {/* Build version */}
+      <div className="px-4 py-2 border-t border-border text-[10px] text-muted font-mono">
+        v1.0.0 · {process.env.NEXT_PUBLIC_GIT_HASH ?? 'dev'}
+      </div>
     </>
   );
 
