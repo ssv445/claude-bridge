@@ -237,9 +237,12 @@ export function TerminalView({
 
       if (disposed || !termRef.current) return;
 
+      // Smaller font on mobile to get ~50+ columns (vs ~35-40 at 14px)
+      // Prevents Claude Code's TUI messages from wrapping into vertical garbage
+      const isMobile = window.innerWidth < 768;
       const term = new Terminal({
         cursorBlink: true,
-        fontSize: 14,
+        fontSize: isMobile ? 11 : 14,
         fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", monospace',
         theme: XTERM_THEMES[theme],
       });
