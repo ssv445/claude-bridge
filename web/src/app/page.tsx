@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, CSSProperties } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { SessionList } from '@/components/SessionList';
 import { TerminalView } from '@/components/TerminalView';
 import { NewSessionDialog } from '@/components/NewSessionDialog';
@@ -198,10 +198,7 @@ export default function Home() {
   );
 
   return (
-    <div
-      className="h-dvh flex"
-      style={nativeKeyboardHeight > 0 ? { height: `calc(100dvh - ${nativeKeyboardHeight}px)` } as CSSProperties : undefined}
-    >
+    <div className="h-dvh flex">
       {/* Desktop sidebar — always visible */}
       <div className="hidden md:flex md:flex-col md:w-56 md:shrink-0 bg-surface border-r border-border">
         {sidebar}
@@ -284,6 +281,7 @@ export default function Home() {
               session={name}
               visible={name === activeTab}
               theme={theme}
+              nativeKeyboardHeight={nativeKeyboardHeight}
               onDisconnect={() => detachSession(name)}
             />
           ))

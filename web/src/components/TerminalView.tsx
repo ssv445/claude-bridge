@@ -92,11 +92,13 @@ export function TerminalView({
   session,
   visible,
   theme,
+  nativeKeyboardHeight = 0,
   onDisconnect,
 }: {
   session: string;
   visible: boolean;
   theme: Theme;
+  nativeKeyboardHeight?: number;
   onDisconnect: () => void;
 }) {
   const termRef = useRef<HTMLDivElement>(null);
@@ -142,11 +144,17 @@ export function TerminalView({
     }
   }, [keyboardVisible]);
 
-  // ResizeObserver on terminal container — fires on keyboard open/close, window resize, VK toggle
+  // Track keyboard height in a ref so ResizeObserver can read it without re-subscribing
+  const nativeKbRef = useRef(nativeKeyboardHeight);
+  nativeKbRef.current = nativeKeyboardHeight;
+
+  // ResizeObserver on terminal container — fires on window resize, VK toggle
+  // Skips fit() when native keyboard is open to avoid Claude Code re-render
   useEffect(() => {
     const el = termRef.current;
     if (!el || !termReady) return;
     const ro = new ResizeObserver(() => {
+      if (nativeKbRef.current > 0) return; // keyboard open — skip resize
       requestAnimationFrame(() => fitAddonRef.current?.fit());
     });
     ro.observe(el);
@@ -401,6 +409,14 @@ export function TerminalView({
       style={{
         display: visible ? 'flex' : 'none',
         backgroundColor: XTERM_THEMES[theme].background,
+        // Translate up when native keyboard is open — avoids terminal resize/re-render
+        ...(nativeKeyboardHeight > 0 ? {
+          transform: `translateY(-${nativeKeyboardHeight}px)`,
+          transition: 'transform 0.1s ease-out',
+        } : {
+          transform: 'translateY(0)',
+          transition: 'transform 0.1s ease-out',
+        }),
       }}
     >
       {/* Terminal + reconnect overlay */}
@@ -511,9 +527,9 @@ export function TerminalView({
 
       {/* Bottom bar - Mobile only: Paste | ↑ | Keyboard | ↓ | Enter */}
       <div className="shrink-0 md:hidden h-11 bg-gray-900/90 backdrop-blur-sm border-t border-gray-700/50 flex items-center justify-around">
-        {/* Paste */}
+        {/* Paste — uses onClick (not onPointerDown) so iOS recognizes the user gesture for clipboard */}
         <button
-          onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); handlePaste(); }}
+          onClick={handlePaste}
           className="w-11 h-11 flex items-center justify-center text-gray-300 active:text-white"
           title="Paste"
         >
