@@ -34,12 +34,18 @@ echo "==> Starting server..."
 NODE_ENV=production nohup node dist/server.cjs > /tmp/claude-bridge.log 2>&1 &
 SERVER_PID=$!
 
-sleep 2
-if curl -s -o /dev/null -w '' http://localhost:3100; then
-  echo "==> Server running (PID $SERVER_PID)"
-  echo "    Logs: /tmp/claude-bridge.log"
-else
-  echo "ERROR: Server failed to start. Check /tmp/claude-bridge.log"
-  cat /tmp/claude-bridge.log
-  exit 1
-fi
+# Verify server is actually healthy (HTTP 200 from sessions API)
+for i in 1 2 3 4 5; do
+  sleep 2
+  HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3100/api/sessions 2>/dev/null || echo "000")
+  if [ "$HTTP_CODE" = "200" ]; then
+    echo "==> Server running (PID $SERVER_PID)"
+    echo "    Logs: /tmp/claude-bridge.log"
+    exit 0
+  fi
+  echo "    Waiting for server... (attempt $i, got HTTP $HTTP_CODE)"
+done
+
+echo "ERROR: Server failed to start. Check /tmp/claude-bridge.log"
+tail -20 /tmp/claude-bridge.log
+exit 1
