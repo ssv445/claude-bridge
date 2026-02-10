@@ -83,6 +83,19 @@ const KEYBOARD_SECTIONS = [
   },
 ];
 
+// iOS renders emoji-default codepoints (⏴-⏺, ✳, ❯) as colorful Apple emoji
+// instead of monospace text glyphs. Appending U+FE0E (VS15) forces text presentation.
+// Only active on iOS — desktop already renders these correctly.
+const IS_IOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
+const EMOJI_TEXT_RE = /[\u23F4-\u23FA\u2733\u276F]/g;
+function forceTextPresentation(data: string): string {
+  if (!IS_IOS) return data;
+  EMOJI_TEXT_RE.lastIndex = 0;
+  return EMOJI_TEXT_RE.test(data)
+    ? (EMOJI_TEXT_RE.lastIndex = 0, data.replace(EMOJI_TEXT_RE, '$&\uFE0E'))
+    : data;
+}
+
 type ConnectionState = 'connecting' | 'connected' | 'reconnecting' | 'failed';
 
 const MAX_RECONNECT_ATTEMPTS = 5;
@@ -197,7 +210,7 @@ export function TerminalView({
       };
 
       ws.onmessage = (e) => {
-        term.write(e.data);
+        term.write(forceTextPresentation(e.data));
       };
 
       ws.onclose = () => {
@@ -440,7 +453,7 @@ export function TerminalView({
       >
         <div
           ref={termRef}
-          className="absolute inset-0 md:p-2"
+          className="absolute inset-0 px-1 md:p-2"
           onClick={() => {
             if (keyboardVisible && xtermRef.current) {
               xtermRef.current.blur();
