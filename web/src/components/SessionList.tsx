@@ -138,6 +138,27 @@ export function SessionList({
   const attachedGroups = groupByDirectory(attachedSessions);
   const availableGroups = groupByDirectory(availableSessions);
 
+  // Strip longest common directory prefix across all groups for shorter display
+  const allDirs = [...attachedGroups, ...availableGroups].map(g => g.dir);
+  let commonPrefix = '';
+  if (allDirs.length > 1) {
+    const parts = allDirs[0].split('/');
+    for (let i = 0; i < parts.length; i++) {
+      const candidate = parts.slice(0, i + 1).join('/') + '/';
+      if (allDirs.every(d => d.startsWith(candidate))) {
+        commonPrefix = candidate;
+      } else {
+        break;
+      }
+    }
+  }
+  const shortDir = (dir: string) => {
+    if (commonPrefix && dir.startsWith(commonPrefix)) {
+      return dir.slice(commonPrefix.length) || dir;
+    }
+    return dir;
+  };
+
   // Sort available groups by most recent activity
   availableGroups.sort((a, b) => b.mostRecentActivity.getTime() - a.mostRecentActivity.getTime());
 
@@ -162,7 +183,7 @@ export function SessionList({
             <span className="font-mono text-sm truncate">{s.name}</span>
           </div>
           <div className="text-xs text-muted ml-3 truncate">
-            {s.windows}w &middot; {s.lastActivity}
+            {s.lastActivity}
           </div>
         </div>
 
@@ -194,7 +215,7 @@ export function SessionList({
             {attachedGroups.map(group => (
               <div key={group.dir}>
                 <div className="flex items-center justify-between text-xs text-muted px-2 mb-1">
-                  <span className="font-mono truncate">{group.dir}</span>
+                  <span className="font-mono truncate">{shortDir(group.dir)}</span>
                   {onNewInDir && (
                     <button
                       onClick={(e) => { e.stopPropagation(); onNewInDir(group.dir); }}
@@ -222,7 +243,7 @@ export function SessionList({
             {availableGroups.map(group => (
               <div key={group.dir}>
                 <div className="flex items-center justify-between text-xs text-muted px-2 mb-1">
-                  <span className="font-mono truncate">{group.dir}</span>
+                  <span className="font-mono truncate">{shortDir(group.dir)}</span>
                   {onNewInDir && (
                     <button
                       onClick={(e) => { e.stopPropagation(); onNewInDir(group.dir); }}

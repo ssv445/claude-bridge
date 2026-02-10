@@ -36,6 +36,18 @@ function useFullscreen() {
   return { isFullscreen, toggle, isIOS, isPWA };
 }
 
+// Close push notifications — all, or just for a specific session
+async function clearNotifications(session?: string) {
+  const reg = await navigator.serviceWorker?.ready;
+  if (!reg) return;
+  const notifications = await reg.getNotifications();
+  for (const n of notifications) {
+    if (!session || n.data?.session === session) {
+      n.close();
+    }
+  }
+}
+
 export default function Home() {
   const [openTabs, setOpenTabs] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<string | null>(null);
@@ -85,6 +97,16 @@ export default function Home() {
     setOpenTabs((prev) => (prev.includes(name) ? prev : [...prev, name]));
     setActiveTab(name);
     setSidebarOpen(false);
+    clearNotifications(name);
+  }, []);
+
+  // Clear all notifications when app comes to foreground
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') clearNotifications();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
   }, []);
 
   // Listen for service worker messages (notification tap → open session)
