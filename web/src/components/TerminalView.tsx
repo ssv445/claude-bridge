@@ -297,14 +297,9 @@ export function TerminalView({
           return true; // no selection — let \x03 (SIGINT) through
         }
 
-        if (ev.key === 'v') {
-          navigator.clipboard.readText().then((text) => {
-            if (text && wsRef.current?.readyState === WebSocket.OPEN) {
-              wsRef.current.send(text);
-            }
-          });
-          return false;
-        }
+        // Ctrl/Cmd+V: let browser's native paste event handle it.
+        // xterm picks it up via its own paste listener → onData → WebSocket.
+        // No custom handling needed (doing both causes double paste).
 
         return true;
       });
@@ -563,6 +558,28 @@ export function TerminalView({
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
             <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          </svg>
+        </button>
+        {/* Exit copy-mode — sends 'q' to tmux to return to input mode */}
+        <button
+          onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); sendKey('q'); }}
+          className="w-11 h-11 flex items-center justify-center text-gray-300 active:text-white"
+          title="Exit copy mode (back to input)"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+            <path d="M12 4v16" />
+            <path d="M8 4h8M8 20h8" />
+          </svg>
+        </button>
+        {/* Tab */}
+        <button
+          onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); sendKey('\t'); }}
+          className="w-11 h-11 flex items-center justify-center text-gray-300 active:text-white"
+          title="Tab / Autocomplete"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+            <path d="M4 6l6 6-6 6" />
+            <path d="M14 6v12" />
           </svg>
         </button>
         {/* Arrow Up */}
