@@ -1,4 +1,5 @@
 import { createServer } from 'http';
+import { closeSync } from 'fs';
 import { parse } from 'url';
 import { execFileSync } from 'child_process';
 import next from 'next';
@@ -51,6 +52,17 @@ app.prepare().then(() => {
   });
 
   wss.on('connection', (ws: WebSocket, _req: unknown, session: string) => {
+    // Check if tmux session exists before spawning PTY
+    try {
+      execFileSync(TMUX_PATH, ['has-session', '-t', session], { stdio: 'ignore' });
+    } catch (err) {
+      console.warn(`Rejected connection to non-existent session: ${session}`);
+      ws.send(`\x1b[31mError: tmux session "${session}" does not exist.\x1b[0m\r\n`);
+      ws.send(`\x1b[33mRun "tmux ls" to see available sessions.\x1b[0m\r\n`);
+      ws.close(1008, `Session not found: ${session}`);
+      return;
+    }
+
     // Lazy-require node-pty so Next.js webpack doesn't try to bundle it
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const pty = require('node-pty');
@@ -63,6 +75,9 @@ app.prepare().then(() => {
     }
 
     let ptyProcess: ReturnType<typeof pty.spawn>;
+    // node-pty 1.1.0 leaks the first ptmx fd it opens (the one before _fd).
+    // Track it so we can close it manually during cleanup.
+    let leakedMasterFd: number | null = null;
     try {
       ptyProcess = pty.spawn(TMUX_PATH, ['-u', 'attach-session', '-t', session], {
         name: 'xterm-256color',
@@ -71,6 +86,10 @@ app.prepare().then(() => {
         cwd: process.env.HOME,
         env,
       });
+      // node-pty opens ptmx twice: fd N (leaked) and fd N+1 (tracked as _fd)
+      if (typeof ptyProcess._fd === 'number') {
+        leakedMasterFd = ptyProcess._fd - 1;
+      }
     } catch (err) {
       console.error('Failed to spawn PTY:', err);
       ws.close(1011, 'PTY spawn failed');
@@ -101,11 +120,21 @@ app.prepare().then(() => {
       if (cleaned) return;
       cleaned = true;
       clearInterval(heartbeat);
+      try { ptyProcess.kill(); } catch { /* already dead */ }
       try { ptyProcess.destroy(); } catch { /* already dead */ }
+      // Close the leaked master ptmx fd that node-pty never cleans up
+      let closedLeakedFd = false;
+      if (leakedMasterFd !== null) {
+        try {
+          closeSync(leakedMasterFd);
+          closedLeakedFd = true;
+        } catch { /* already closed */ }
+        leakedMasterFd = null;
+      }
       if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
         ws.close();
       }
-      console.log(`Cleaned up PTY for session: ${session}`);
+      console.log(`Cleaned up PTY for session: ${session}, closedLeakedFd: ${closedLeakedFd}`);
     };
 
     ptyProcess.onExit(({ exitCode }: { exitCode: number }) => {
