@@ -96,6 +96,29 @@ function forceTextPresentation(data: string): string {
     : data;
 }
 
+// Web Speech API type declaration (not fully typed in TS)
+interface SpeechRecognitionEvent extends Event {
+  results: SpeechRecognitionResultList;
+  resultIndex: number;
+}
+interface SpeechRecognitionInstance extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start(): void;
+  stop(): void;
+  abort(): void;
+  onresult: ((ev: SpeechRecognitionEvent) => void) | null;
+  onend: (() => void) | null;
+  onerror: ((ev: Event) => void) | null;
+}
+declare global {
+  interface Window {
+    webkitSpeechRecognition: new () => SpeechRecognitionInstance;
+    SpeechRecognition: new () => SpeechRecognitionInstance;
+  }
+}
+
 type ConnectionState = 'connecting' | 'connected' | 'reconnecting' | 'failed';
 
 const MAX_RECONNECT_ATTEMPTS = 5;
@@ -130,6 +153,13 @@ export function TerminalView({
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [termReady, setTermReady] = useState(false);
 
+  // Voice input + compose overlay state
+  const [isListening, setIsListening] = useState(false);
+  const [showCompose, setShowCompose] = useState(false);
+  const [composeText, setComposeText] = useState('');
+  const speechRef = useRef<SpeechRecognitionInstance | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
   // Selection mode state (mobile long-press to select text)
   const [selectionMode, setSelectionMode] = useState(false);
   const savedMouseModeRef = useRef<string>('none');
@@ -150,6 +180,80 @@ export function TerminalView({
       // clipboard access denied or empty
     }
   }, []);
+
+  const startListening = useCallback(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+    speechRef.current = recognition;
+
+    // Track the length of finalized text so we only append new finals
+    let finalizedLength = 0;
+
+    recognition.onresult = (ev: SpeechRecognitionEvent) => {
+      let finalTranscript = '';
+      let interimTranscript = '';
+      for (let i = ev.resultIndex; i < ev.results.length; i++) {
+        const result = ev.results[i];
+        if (result.isFinal) {
+          finalTranscript += result[0].transcript;
+        } else {
+          interimTranscript += result[0].transcript;
+        }
+      }
+
+      setComposeText((prev) => {
+        // Append finalized text
+        const base = prev.slice(0, finalizedLength) + (finalizedLength < prev.length ? prev.slice(finalizedLength) : '');
+        if (finalTranscript) {
+          const separator = base.length > 0 && !base.endsWith(' ') ? ' ' : '';
+          const updated = base + separator + finalTranscript;
+          finalizedLength = updated.length;
+          return updated;
+        }
+        return base;
+      });
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+      speechRef.current = null;
+    };
+
+    recognition.onerror = () => {
+      setIsListening(false);
+      speechRef.current = null;
+    };
+
+    recognition.start();
+    setIsListening(true);
+  }, []);
+
+  const stopListening = useCallback(() => {
+    speechRef.current?.stop();
+    // onend handler will clean up state
+  }, []);
+
+  const openCompose = useCallback(() => {
+    setShowCompose(true);
+    setComposeText('');
+    startListening();
+    // Focus textarea after render
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  }, [startListening]);
+
+  const closeCompose = useCallback((send: boolean) => {
+    if (isListening) stopListening();
+    if (send && composeText.trim() && wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(composeText);
+    }
+    setShowCompose(false);
+    setComposeText('');
+  }, [isListening, stopListening, composeText]);
 
   // Keep refs in sync for closure access in touch handlers
   useEffect(() => { selectionModeRef.current = selectionMode; }, [selectionMode]);
@@ -667,6 +771,52 @@ export function TerminalView({
         </div>
       )}
 
+      {/* Compose overlay — slides up when mic is tapped */}
+      {showCompose && (
+        <div className="shrink-0 md:hidden bg-gray-800 border-t border-gray-600">
+          <textarea
+            ref={textareaRef}
+            value={composeText}
+            onChange={(e) => setComposeText(e.target.value)}
+            placeholder="Speak or type..."
+            rows={3}
+            className="w-full bg-transparent text-gray-100 text-sm font-mono p-3 resize-none focus:outline-none placeholder-gray-500"
+            style={{ maxHeight: '8rem' }}
+          />
+          <div className="flex items-center justify-between px-2 pb-2">
+            {/* Mic toggle */}
+            <button
+              onClick={() => isListening ? stopListening() : startListening()}
+              className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${
+                isListening ? 'bg-red-600 text-white animate-pulse' : 'bg-gray-700 text-gray-300'
+              }`}
+              title={isListening ? 'Stop listening' : 'Start listening'}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" />
+                <path d="M19 10v2a7 7 0 01-14 0v-2" />
+                <line x1="12" y1="19" x2="12" y2="23" />
+                <line x1="8" y1="23" x2="16" y2="23" />
+              </svg>
+            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => closeCompose(false)}
+                className="px-4 py-2 text-gray-400 text-sm font-mono active:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => closeCompose(true)}
+                className="px-4 py-2 bg-blue-600 rounded text-white text-sm font-mono active:bg-blue-700"
+              >
+                Send
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Bottom bar - Mobile only: Paste | ↑ | Keyboard | ↓ | Enter */}
       <div className="shrink-0 md:hidden h-11 bg-gray-900/90 backdrop-blur-sm border-t border-gray-700/50 flex items-center justify-around">
         {/* Escape */}
@@ -685,6 +835,19 @@ export function TerminalView({
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
             <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          </svg>
+        </button>
+        {/* Mic — opens compose overlay with voice input */}
+        <button
+          onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); openCompose(); }}
+          className="w-11 h-11 flex items-center justify-center text-gray-300 active:text-white"
+          title="Voice input"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+            <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" />
+            <path d="M19 10v2a7 7 0 01-14 0v-2" />
+            <line x1="12" y1="19" x2="12" y2="23" />
+            <line x1="8" y1="23" x2="16" y2="23" />
           </svg>
         </button>
         {/* Exit copy-mode — sends 'q' to tmux to return to input mode */}
