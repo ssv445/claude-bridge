@@ -175,10 +175,13 @@ export function TerminalView({
       const text = await navigator.clipboard.readText();
       if (text && wsRef.current?.readyState === WebSocket.OPEN) {
         wsRef.current.send(text);
+        return;
       }
     } catch {
-      // clipboard access denied or empty
+      // clipboard access denied or empty — fall through
     }
+    // No text in clipboard — send Ctrl+V for Claude Code's image paste
+    wsRef.current?.send('\x16');
   }, []);
 
   const startListening = useCallback(() => {
@@ -827,9 +830,9 @@ export function TerminalView({
         >
           <span className="text-xs font-mono font-bold">Esc</span>
         </button>
-        {/* Paste — sends Ctrl+V to trigger Claude Code's native paste (including images from host clipboard) */}
+        {/* Paste — tries clipboard text first, falls back to Ctrl+V for image paste */}
         <button
-          onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); sendKey('\x16'); }}
+          onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); handlePaste(); }}
           className="w-11 h-11 flex items-center justify-center text-gray-300 active:text-white"
           title="Paste (Ctrl+V)"
         >
