@@ -1,95 +1,58 @@
 # Setup Guide
 
-Complete guide to run Claude Code sessions from your phone using claude-wormhole.
-
-**How it works:** Your Mac runs tmux sessions with Claude Code. A Next.js web app exposes those sessions over WebSocket. Tailscale creates a private network so you can access it from your phone without exposing anything to the public internet.
+Complete guide to set up claude-wormhole — access Claude Code sessions from any device over a private Tailscale network.
 
 ```
-Phone (Safari PWA / Terminus SSH)
-  |
-  |  Tailscale private network
-  |
+Phone (Safari PWA / SSH)
+  │
+  │  Tailscale private network
+  │
 Mac (tmux + Claude Code + web server)
 ```
 
 ## Prerequisites
 
-Install the following on your Mac:
-
 ```sh
-# tmux - terminal multiplexer
-brew install tmux
+brew install tmux                              # terminal multiplexer
+brew install joshmedeski/sesh/sesh             # smart tmux session manager
+brew install node                              # Node.js (v20+)
+npm install -g @anthropic-ai/claude-code       # Claude Code CLI
 
-# sesh - smart tmux session manager
-brew install joshmedeski/sesh/sesh
-
-# TPM - tmux plugin manager (for session persistence)
+# tmux plugin manager (for session persistence)
 git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
-
-# Node.js (v20+)
-brew install node
-
-# Claude Code
-npm install -g @anthropic-ai/claude-code
 ```
 
-## 1. Tailscale Setup
+## 1. Tailscale
 
-### Desktop (Mac)
+### Mac
 
-1. Install Tailscale: `brew install --cask tailscale` (or from the Mac App Store)
-2. Open Tailscale and sign in to your account
-3. **Enable incoming connections:**
-   - Click the Tailscale menu bar icon
-   - Go to Settings
-   - Toggle **"Allow incoming connections"** ON
-   - This is required for your phone to reach the Mac
+1. Install: `brew install --cask tailscale` (or Mac App Store)
+2. Open Tailscale and sign in
+3. **Enable incoming connections** — Tailscale menu bar > Settings > "Allow incoming connections" ON
+   - Without this, your phone can't reach the Mac (see Troubleshooting)
 
 ### iOS
 
-1. Install [Tailscale from the App Store](https://apps.apple.com/app/tailscale/id1470499037)
-2. Sign in with the **same account** as your Mac
-3. Both devices should appear in your Tailscale admin console
-4. Verify connectivity - on your phone, try accessing your Mac's Tailscale IP:
-   - Find your Mac's IP: `tailscale ip -4` (e.g., `100.x.y.z`)
+1. Install [Tailscale](https://apps.apple.com/app/tailscale/id1470499037) and sign in with the **same account**
+2. Verify both devices appear in your Tailscale admin console
+3. Test connectivity: find your Mac's IP with `tailscale ip -4`
 
-## 2. Configure tmux
+## 2. tmux
 
-Copy the included tmux config or merge it with your existing `~/.tmux.conf`:
+Copy the included config or merge with your existing `~/.tmux.conf`:
 
 ```sh
 cp scripts/tmux.conf ~/.tmux.conf
+tmux    # start tmux, then press prefix + I to install plugins
 ```
 
-This config includes:
-- **tmux-resurrect** - saves/restores sessions across tmux server restarts
-- **tmux-continuum** - auto-saves sessions every 15 minutes
-- Mouse support, scrollback history, 1-indexed windows
+Includes tmux-resurrect (save/restore sessions) and tmux-continuum (auto-save every 15 min).
 
-Install the plugins:
+## 3. The `cld` Alias
 
 ```sh
-# Start tmux
-tmux
-
-# Inside tmux, press: prefix + I (capital i) to install plugins
-# Default prefix is Ctrl+b
-```
-
-## 3. Set Up the `cld` Alias
-
-The `cld` script launches Claude Code inside a tmux session with `--dangerously-skip-permissions` and `--chrome` flags.
-
-Add an alias to your shell config (`~/.zshrc` or `~/.bashrc`):
-
-```sh
-# Add this line to ~/.zshrc
+# Add to ~/.zshrc
 alias cld="/path/to/claude-wormhole/scripts/cld.sh"
-```
-
-Then reload:
-
-```sh
 source ~/.zshrc
 ```
 
@@ -102,123 +65,57 @@ cld my-session               # custom session name
 cld -- --model opus          # pass extra args to claude
 ```
 
-If sessions matching the project already exist, `cld` will list them and let you pick one or create a new one.
-
-## 4. Start the Web Service
-
-The web app serves a terminal UI that connects to your tmux sessions via WebSocket.
+## 4. Web Server
 
 ```sh
-# Install dependencies
 npm install
+npm run dev          # development (port 3100)
 
-# Development
-npm run dev
-
-# Production
-npm run build
-npm start
+# or production:
+npm run build && npm start
 ```
 
-The server starts on `http://0.0.0.0:3100` by default.
-
-### Expose via Tailscale Serve
-
-To access the web app over HTTPS on your Tailscale network:
+### Expose via Tailscale
 
 ```sh
-# Serve port 3100 over your Tailscale hostname
-tailscale serve --bg 3100
+tailscale serve --bg 3100                    # serve over HTTPS
+# Available at: https://your-machine.tailnet.ts.net/
+tailscale serve --bg off                     # stop serving
 ```
 
-Your app is now available at:
+## 5. Run as Service (Auto-start)
 
-```
-https://your-machine-name.tailnet-name.ts.net/
-```
-
-To stop serving:
+Auto-start on login with crash recovery via macOS launchd:
 
 ```sh
-tailscale serve --bg off
+./scripts/service.sh install     # build + enable tailscale serve + load agent
+./scripts/service.sh status      # check if running
+./scripts/service.sh logs        # tail stdout + stderr
+./scripts/service.sh restart     # stop + start
+./scripts/service.sh uninstall   # remove agent
 ```
 
-## 5. Run as Service (Auto-start + Keepalive)
+Or start manually: `./scripts/start.sh` (builds if needed, enables tailscale serve, starts server).
 
-The web server can be configured to start automatically on login and restart if it crashes, using macOS launchd.
-
-### Install
-
-```sh
-./scripts/service.sh install
-```
-
-This will:
-1. Build the web app (`npm run build`)
-2. Enable `tailscale serve --bg 3100`
-3. Copy the launchd plist to `~/Library/LaunchAgents/`
-4. Load and start the agent
-
-### Manage
-
-```sh
-./scripts/service.sh status    # Check if running
-./scripts/service.sh logs      # Tail stdout + stderr
-./scripts/service.sh restart   # Stop + start
-./scripts/service.sh stop      # Stop the agent
-./scripts/service.sh start     # Start the agent
-```
-
-### Uninstall
-
-```sh
-./scripts/service.sh uninstall
-```
-
-### Standalone start (without launchd)
-
-If you prefer to start manually without the service:
-
-```sh
-./scripts/start.sh
-```
-
-This builds if needed, enables tailscale serve, and starts the server.
-
-### Logs
-
-Logs are written to:
-- **stdout**: `/tmp/claude-wormhole.log`
-- **stderr**: `/tmp/claude-wormhole.err`
+Logs: `/tmp/claude-wormhole.log` and `/tmp/claude-wormhole.err`
 
 ## 6. Push Notifications (Optional)
 
-Get notified on your phone when Claude finishes a task or needs input — even when the PWA isn't open.
-
-### Setup
+Get notified when Claude needs input or finishes a task — even when the PWA isn't open.
 
 ```sh
-# Generate VAPID keys and save to .env.local
-npm run setup:push https://your-machine-name.tailnet-name.ts.net
+# Generate VAPID keys
+npm run setup:push https://your-machine.tailnet.ts.net
+
+# Restart the server
+npm run dev    # or: npm start
 ```
 
-Use your Tailscale HTTPS URL or a `mailto:` address as the VAPID subject (Apple rejects invalid values like `localhost`).
-
-Restart the server after setup:
-
-```sh
-npm run dev      # or: npm start (production)
-```
-
-### Enable on your phone
-
-1. Open the PWA from your Home Screen (must be HTTPS — use Tailscale serve URL, not raw IP)
-2. A banner will appear: **"Enable notifications?"**
-3. Tap **Enable** and allow when iOS prompts
+Then open the PWA on your phone and tap **Enable** on the notification banner.
 
 ### Claude Code hooks
 
-Notifications are triggered by Claude Code's hook system. Add these hooks to `~/.claude/settings.json`:
+Add to `~/.claude/settings.json`:
 
 ```json
 {
@@ -250,13 +147,9 @@ Notifications are triggered by Claude Code's hook system. Add these hooks to `~/
 }
 ```
 
-This sends push notifications when:
-- **`Notification`** — Claude needs permission or is waiting for input
-- **`Stop`** — Claude finishes a task
+The hook script defaults to `http://localhost:3100`. Set `CLAUDE_WORMHOLE_URL` to override.
 
-The hook script defaults to `http://localhost:3100`. Set `CLAUDE_WORMHOLE_URL` in your shell profile to override.
-
-### Test
+Test:
 
 ```sh
 curl -X POST http://localhost:3100/api/notify \
@@ -264,75 +157,49 @@ curl -X POST http://localhost:3100/api/notify \
   -d '{"type": "idle", "message": "Test notification", "session": "my-session"}'
 ```
 
-## 7. Backup: SSH via Terminus
-
-If the web UI is down or you prefer a native terminal, use SSH as a fallback.
-
-### On your Mac
-
-Ensure SSH is enabled:
-- System Settings > General > Sharing > Remote Login > ON
-
-### On iOS
-
-1. Install [Terminus](https://apps.apple.com/app/termius-terminal-ssh-client/id549039908) from the App Store
-2. Create a new host:
-   - **Hostname:** Your Mac's Tailscale IP (e.g., `100.x.y.z`)
-   - **Username:** Your Mac username (e.g., `john`)
-   - **Auth:** SSH key (recommended) or password
-3. Connect and attach to your tmux session:
-
-```sh
-# List sessions
-tmux ls
-
-# Attach to a session
-tmux attach -t my-app
-```
-
-This works anywhere on your Tailscale network without exposing SSH to the public internet.
-
 ## 7. Install the PWA on iOS
 
-The web app includes a PWA manifest for an app-like experience on your phone.
+1. Open Safari > your Tailscale serve URL
+2. Tap **Share** > **Add to Home Screen**
+3. Name it (e.g., "wormhole") and tap **Add**
 
-1. Open Safari on your iPhone
-2. Navigate to your Tailscale serve URL (e.g., `https://your-machine-name.tailnet-name.ts.net/`)
-3. Tap the **Share** button (square with arrow)
-4. Scroll down and tap **"Add to Home Screen"**
-5. Name it (e.g., "tmux") and tap **Add**
+Runs in standalone mode with no browser chrome, dark theme optimized for terminal use.
 
-The PWA runs in standalone mode (no Safari chrome) with a dark theme optimized for terminal use.
+## 8. SSH Fallback
+
+If the web UI is down, use SSH via Tailscale:
+
+1. Mac: System Settings > General > Sharing > Remote Login > ON
+2. iOS: Install [Terminus](https://apps.apple.com/app/termius-terminal-ssh-client/id549039908), connect to your Mac's Tailscale IP
+3. `tmux attach -t my-app`
 
 ## Quick Reference
 
 | What | Command |
 |---|---|
-| Start a Claude session | `cd ~/projects/my-app && cld` |
+| Start Claude session | `cd ~/projects/my-app && cld` |
 | Start web server | `npm run dev` |
 | Tailscale serve | `tailscale serve --bg 3100` |
 | Stop Tailscale serve | `tailscale serve --bg off` |
 | Setup push notifications | `npm run setup:push <your-url>` |
-| Test push notification | `curl -X POST http://localhost:3100/api/notify -H 'Content-Type: application/json' -d '{"type":"idle","message":"test"}'` |
 | List tmux sessions | `tmux ls` |
-| Attach to session (SSH) | `tmux attach -t session-name` |
 | Mac Tailscale IP | `tailscale ip -4` |
 
 ## Troubleshooting
 
 **Phone can't reach Mac over Tailscale**
 - Check "Allow incoming connections" is ON in Tailscale settings on Mac
-- Verify both devices are on the same Tailscale network: `tailscale status`
-- macOS firewall (pf rules) alone won't fix this - you need Tailscale's own setting
+- Verify both devices are on the same network: `tailscale status`
+- macOS firewall (pf rules) won't help — you need Tailscale's own setting
 
-**Web app loads but terminal doesn't connect**
-- Make sure a tmux session exists first: `tmux ls`
+**Terminal doesn't connect**
+- A tmux session must exist first: `tmux ls`
 - The web app attaches to existing sessions, it doesn't create them
 
-**`cld` command not found**
-- Ensure the alias is in your `~/.zshrc` and you've run `source ~/.zshrc`
+**`cld` not found**
+- Ensure the alias is in `~/.zshrc` and you've run `source ~/.zshrc`
 - Check the script is executable: `chmod +x /path/to/claude-wormhole/scripts/cld.sh`
 
 **tmux plugins not loading**
-- Run `prefix + I` inside tmux to install plugins via TPM
+- Run `prefix + I` inside tmux to install via TPM
 - Check TPM is cloned: `ls ~/.tmux/plugins/tpm`

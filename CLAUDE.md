@@ -1,6 +1,6 @@
 # claude-wormhole
 
-A bridge between you and your Claude Code sessions, from any device over a private Tailscale network.
+Access your Claude Code sessions from any device over a private Tailscale network.
 
 ## Purpose
 

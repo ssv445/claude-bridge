@@ -1,45 +1,36 @@
 # claude-wormhole
 
-Never leave Claude Code waiting. Access your sessions from terminal, VS Code, browser, or phone - same session, any device, zero interruption.
+Access your Claude Code sessions from any device. Phone, browser, laptop — same session, zero interruption.
+
+> **Why "wormhole"?** A wormhole connects two distant points instantly. claude-wormhole does the same — it connects you to your running Claude Code session from wherever you are, as if you never left your desk.
 
 ## The Problem
 
-Claude Code runs a 10-minute task, hits a question, and blocks. You're on the couch, in a meeting, or grabbing coffee. By the time you're back at your desk, you've lost 20 minutes of momentum on a 2-second approval.
+Claude Code blocks on user input. It runs a 10-minute task, hits a permission prompt, and waits. You're on the couch, in a meeting, or grabbing coffee. By the time you're back, you've lost 20 minutes on a 2-second approval.
 
-The underlying issue: Claude Code sessions are tied to whichever terminal spawned them. Close the tab, lose the session. Walk away from the machine, no way to respond.
+The root issue: sessions are tied to the terminal that spawned them. Close the tab, lose the session.
 
-## The Solution
+## How It Works
 
-claude-wormhole decouples sessions from any single interface. A Claude Code session runs inside tmux on your Mac. You connect to it from whatever is in front of you right now.
+Sessions run in tmux on your Mac. You connect from whatever device is in front of you.
 
 ```
-Desktop terminal  ──┐
-VS Code           ──┤                ┌─────────────────────┐
-Browser (PWA)     ──┼── Tailscale ──>│  Mac                 │
-Phone (PWA)       ──┤   private net  │  tmux                │
-SSH (Terminus)    ──┘                │   ├─ my-app (claude) │
-                                     │   ├─ api (claude)    │
-                                     │   └─ scripts (bash)  │
-                                     └─────────────────────┘
+Phone (PWA)       ──┐
+Browser           ──┤                ┌──────────────────────┐
+Desktop terminal  ──┼── Tailscale ──>│  Mac / tmux           │
+SSH (Terminus)    ──┘   private net  │   ├─ my-app (claude)  │
+                                     │   ├─ api (claude)     │
+                                     │   └─ scripts (bash)   │
+                                     └──────────────────────┘
 ```
 
-The session is the same across all channels. Start something on your desktop, approve a prompt from your phone, review the result back on your laptop. No context lost, no session restarts.
+Start something on your desktop, approve a prompt from your phone, review the result on your laptop. Same session everywhere.
 
-**How it works:**
-- **tmux** keeps sessions alive independent of any client connection
-- **Next.js + xterm.js + WebSocket** serves a browser-based terminal that attaches to tmux sessions
-- **Tailscale** creates a private network between your devices - nothing exposed to the internet
-- **PWA** makes the web terminal installable on iOS with no browser chrome
-
-## Components
-
-| Path | What |
-|---|---|
-| `server.ts` | Custom server with node-pty + WebSocket. Pipes tmux I/O over ws to xterm.js |
-| `src/` | Next.js app pages (session list, terminal) |
-| `public/` | PWA manifest + icons |
-| `scripts/cld.sh` | CLI to launch Claude Code in tmux with `--dangerously-skip-permissions --chrome` |
-| `scripts/tmux.conf` | tmux config with resurrect + continuum for session persistence across reboots |
+- **tmux** keeps sessions alive independent of any client
+- **Next.js + xterm.js + WebSocket** serves a browser terminal that attaches to tmux sessions
+- **Tailscale** creates a private network between your devices — nothing exposed to the internet
+- **PWA** makes the terminal installable on iOS with no browser chrome
+- **Push notifications** alert you when Claude needs input or finishes a task
 
 ## Quick Start
 
@@ -49,8 +40,7 @@ echo 'alias cld="/path/to/claude-wormhole/scripts/cld.sh"' >> ~/.zshrc
 source ~/.zshrc
 
 # 2. Start a Claude session
-cd ~/projects/my-app
-cld
+cd ~/projects/my-app && cld
 
 # 3. Start the web server
 npm install && npm run dev
@@ -62,19 +52,20 @@ tailscale serve --bg 3100
 # https://your-machine.tailnet.ts.net/
 ```
 
-## Why This Approach?
+## Project Structure
 
-VS Code tunnels, webmux, and SSH were all tried first. See **[WHY.md](WHY.md)** for what failed, what worked, and the 2-hour Tailscale debugging rabbit hole.
+| Path | What |
+|---|---|
+| `server.ts` | Custom server — node-pty + WebSocket pipes tmux I/O to xterm.js |
+| `src/` | Next.js app (session list, terminal view) |
+| `public/` | PWA manifest + icons |
+| `scripts/cld.sh` | CLI to launch Claude Code in tmux sessions |
+| `scripts/tmux.conf` | tmux config with resurrect + continuum for persistence |
 
-## Full Setup
+## Docs
 
-See **[SETUP.md](SETUP.md)** for the complete walkthrough:
-- Installing Tailscale on Mac and iOS
-- Configuring tmux with session persistence
-- Setting up the `cld` alias
-- Running the web service
-- SSH fallback via Terminus
-- Installing the PWA on iOS
+- **[SETUP.md](SETUP.md)** — Full walkthrough: Tailscale, tmux, push notifications, PWA install, launchd service
+- **[WHY.md](WHY.md)** — What failed first (VS Code tunnels, webmux) and why this approach won
 
 ## License
 
