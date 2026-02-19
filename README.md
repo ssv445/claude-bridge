@@ -4,6 +4,8 @@ Access your Claude Code sessions from any device. Phone, browser, laptop — sam
 
 > **Why "wormhole"?** A wormhole connects two distant points instantly. claude-wormhole does the same — it connects you to your running Claude Code session from wherever you are, as if you never left your desk.
 
+[![Demo video](https://img.youtube.com/vi/f2igZfsvN4w/maxresdefault.jpg)](https://www.youtube.com/watch?v=f2igZfsvN4w)
+
 ## The Problem
 
 Claude Code blocks on user input. It runs a 10-minute task, hits a permission prompt, and waits. You're on the couch, in a meeting, or grabbing coffee. By the time you're back, you've lost 20 minutes on a 2-second approval.
