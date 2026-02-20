@@ -6,11 +6,11 @@
     <string>com.claude-wormhole.web</string>
 
     <key>WorkingDirectory</key>
-    <string>/Users/shyam/www/claude-wormhole</string>
+    <string>__WORMHOLE_ROOT__</string>
 
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/shyam/www/claude-wormhole/bin/wormhole</string>
+        <string>__WORMHOLE_ROOT__/bin/wormhole</string>
         <string>start</string>
     </array>
 
@@ -18,8 +18,6 @@
     <dict>
         <key>NODE_ENV</key>
         <string>production</string>
-        <key>TZ</key>
-        <string>Asia/Calcutta</string>
     </dict>
 
     <key>RunAtLoad</key>

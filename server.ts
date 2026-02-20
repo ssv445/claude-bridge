@@ -1,5 +1,5 @@
 import { createServer } from 'http';
-import { closeSync } from 'fs';
+import { closeSync, existsSync } from 'fs';
 import { parse } from 'url';
 import { execFileSync } from 'child_process';
 import next from 'next';
@@ -67,11 +67,13 @@ app.prepare().then(() => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const pty = require('node-pty');
 
-    // Build env with proper PATH for homebrew
+    // Build env with proper PATH for homebrew (Apple Silicon + Intel Mac)
     // Explicit type preserves the string index signature from process.env
     const env: Record<string, string | undefined> = { ...process.env, TERM: 'xterm-256color' };
-    if (!env.PATH?.includes('/opt/homebrew/bin')) {
-      env.PATH = `/opt/homebrew/bin:${env.PATH}`;
+    for (const dir of ['/opt/homebrew/bin', '/usr/local/bin']) {
+      if (existsSync(dir) && !env.PATH?.includes(dir)) {
+        env.PATH = `${dir}:${env.PATH}`;
+      }
     }
 
     let ptyProcess: ReturnType<typeof pty.spawn>;

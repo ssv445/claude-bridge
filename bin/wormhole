@@ -201,7 +201,9 @@ cmd_service() {
       (cd "$WORMHOLE_ROOT" && npm run build)
 
       log "Installing plist..."
-      cp "$plist_src" "$plist_dst"
+      # Expand template placeholders with this user's actual paths
+      sed -e "s|__WORMHOLE_ROOT__|$WORMHOLE_ROOT|g" \
+          "$plist_src" > "$plist_dst"
 
       if command -v tailscale &>/dev/null; then
         tailscale serve --bg --https "$WORMHOLE_PORT" "$WORMHOLE_PORT" 2>/dev/null || warn "Tailscale serve failed"
