@@ -5,6 +5,7 @@
 set -euo pipefail
 
 WORMHOLE_ROOT="$(cd "$(dirname "$0")" && pwd)"
+WORMHOLE_PORT="${WORMHOLE_PORT:-3100}"
 
 # Colors
 RED='\033[0;31m'
@@ -49,7 +50,72 @@ fi
 
 ok "All prerequisites met"
 
-# ── 2. Install dependencies + build ──
+# ── 2. Clean up old installation artifacts ──
+
+log "Cleaning up old artifacts..."
+
+# Remove old individual scripts that were merged into bin/wormhole
+OLD_SCRIPTS=(
+  "$WORMHOLE_ROOT/scripts/cld.sh"
+  "$WORMHOLE_ROOT/scripts/notify.sh"
+  "$WORMHOLE_ROOT/scripts/statusline.sh"
+  "$WORMHOLE_ROOT/scripts/start.sh"
+  "$WORMHOLE_ROOT/scripts/service.sh"
+  "$WORMHOLE_ROOT/scripts/release.sh"
+  "$WORMHOLE_ROOT/scripts/setup-push.sh"
+  "$WORMHOLE_ROOT/restart.sh"
+  "$WORMHOLE_ROOT/monitor.sh"
+)
+for old in "${OLD_SCRIPTS[@]}"; do
+  if [ -f "$old" ]; then
+    rm -f "$old"
+    ok "Removed old script: ${old##*/}"
+  fi
+done
+
+# Remove old docs that moved to docs/
+for old_doc in "$WORMHOLE_ROOT/SETUP.md" "$WORMHOLE_ROOT/WHY.md"; do
+  if [ -f "$old_doc" ]; then
+    rm -f "$old_doc"
+    ok "Removed old doc: ${old_doc##*/} (now in docs/)"
+  fi
+done
+
+# Remove stale launchd plist with hardcoded paths
+PLIST_DST="$HOME/Library/LaunchAgents/com.claude-wormhole.web.plist"
+if [ -f "$PLIST_DST" ]; then
+  # Check if plist has hardcoded paths (old format) vs template-generated
+  if grep -q '/Users/' "$PLIST_DST" 2>/dev/null; then
+    launchctl unload "$PLIST_DST" 2>/dev/null || true
+    rm -f "$PLIST_DST"
+    ok "Removed old launchd plist with hardcoded paths"
+  fi
+fi
+
+# Remove stale symlinks pointing to old script locations
+for target in /usr/local/bin/wormhole "$HOME/.local/bin/wormhole"; do
+  if [ -L "$target" ]; then
+    local_dest=$(readlink "$target" 2>/dev/null || true)
+    # Remove if pointing to a non-existent file (stale symlink)
+    if [ -n "$local_dest" ] && [ ! -e "$local_dest" ]; then
+      rm -f "$target" 2>/dev/null || true
+      ok "Removed stale symlink: $target -> $local_dest"
+    fi
+  fi
+done
+
+# Clean old Claude hook references in settings.json
+CLAUDE_SETTINGS_FILE="$HOME/.claude/settings.json"
+if [ -f "$CLAUDE_SETTINGS_FILE" ]; then
+  if grep -q 'scripts/notify\.sh\|scripts/statusline\.sh' "$CLAUDE_SETTINGS_FILE" 2>/dev/null; then
+    warn "~/.claude/settings.json has old script references"
+    warn "These will be updated in the hooks setup step"
+  fi
+fi
+
+ok "Cleanup complete"
+
+# ── 3. Install dependencies + build ──
 
 log "Installing npm dependencies..."
 (cd "$WORMHOLE_ROOT" && npm install)
@@ -59,7 +125,7 @@ log "Building web app..."
 
 ok "Build complete"
 
-# ── 3. Symlink wormhole to PATH ──
+# ── 4. Symlink wormhole to PATH ──
 
 log "Setting up wormhole CLI..."
 
@@ -111,7 +177,7 @@ else
   fi
 fi
 
-# ── 4. tmux config ──
+# ── 5. tmux config ──
 
 log "Setting up tmux..."
 
@@ -128,7 +194,7 @@ else
   echo "  Run tmux, then press prefix + I to install plugins"
 fi
 
-# ── 5. Configure Claude Code hooks ──
+# ── 6. Configure Claude Code hooks ──
 
 log "Configuring Claude Code hooks..."
 
@@ -136,9 +202,17 @@ CLAUDE_SETTINGS="$HOME/.claude/settings.json"
 WORMHOLE_BIN="$WORMHOLE_ROOT/bin/wormhole"
 
 if [ -f "$CLAUDE_SETTINGS" ]; then
-  # Check if hooks are already configured
+  # Check if hooks are already configured with current paths
   if grep -q "wormhole notify\|wormhole statusline" "$CLAUDE_SETTINGS"; then
     ok "Claude hooks already configured - skipping"
+  elif grep -q 'scripts/notify\.sh\|scripts/statusline\.sh' "$CLAUDE_SETTINGS"; then
+    # Upgrade old hook references to new bin/wormhole paths
+    log "Upgrading old hook references..."
+    sed -i '' \
+      -e 's|[^"]*scripts/notify\.sh|'"$WORMHOLE_BIN"' notify|g' \
+      -e 's|[^"]*scripts/statusline\.sh|'"$WORMHOLE_BIN"' statusline|g' \
+      "$CLAUDE_SETTINGS"
+    ok "Updated Claude hooks to use bin/wormhole"
   else
     warn "~/.claude/settings.json exists - hooks need manual setup"
     echo ""
@@ -187,21 +261,25 @@ EOF
   ok "Created ~/.claude/settings.json with notification hooks"
 fi
 
-# ── 6. Tailscale serve ──
+# ── 7. Tailscale serve ──
 
 if command -v tailscale &>/dev/null; then
   log "Setting up Tailscale serve..."
-  tailscale serve --bg --https 3100 3100 2>/dev/null \
-    && ok "Tailscale serving port 3100 over HTTPS" \
+  tailscale serve --bg --https "$WORMHOLE_PORT" "$WORMHOLE_PORT" 2>/dev/null \
+    && ok "Tailscale serving port $WORMHOLE_PORT over HTTPS" \
     || warn "Tailscale serve failed (is Tailscale running?)"
 fi
 
-# ── 7. Shell alias for cld ──
+# ── 8. Shell alias for cld ──
 
 log "Setting up shell alias..."
 
-SHELL_RC="$HOME/.zshrc"
-[ -f "$HOME/.bashrc" ] && [ ! -f "$HOME/.zshrc" ] && SHELL_RC="$HOME/.bashrc"
+case "$(basename "${SHELL:-/bin/bash}")" in
+  zsh)  SHELL_RC="$HOME/.zshrc" ;;
+  bash) SHELL_RC="$HOME/.bashrc" ;;
+  fish) SHELL_RC="$HOME/.config/fish/config.fish" ;;
+  *)    SHELL_RC="$HOME/.profile" ;;
+esac
 
 if grep -q 'alias cld=' "$SHELL_RC" 2>/dev/null; then
   # Update existing alias
@@ -231,7 +309,16 @@ echo "    wormhole status       # Check system health"
 echo "    cld                   # Launch Claude in tmux"
 echo ""
 echo "  Remote access:"
-echo "    Open https://$(hostname).tailnet.ts.net/ on your phone"
+if command -v tailscale &>/dev/null; then
+  TS_NAME=$(tailscale status --json 2>/dev/null | jq -r '.Self.DNSName // empty' 2>/dev/null | sed 's/\.$//')
+  if [ -n "$TS_NAME" ]; then
+    echo "    Open https://${TS_NAME}/ on your phone"
+  else
+    echo "    Open your Tailscale HTTPS URL on your phone"
+  fi
+else
+  echo "    Install Tailscale for remote access"
+fi
 echo ""
 echo "  Run 'source $SHELL_RC' or open a new terminal for the cld alias."
 echo ""
