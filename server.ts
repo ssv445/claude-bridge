@@ -40,20 +40,27 @@ console.log(`Build version: ${BUILD_VERSION}`);
 const SESSION_NAME_RE = /^[a-zA-Z0-9_-]+$/;
 
 app.prepare().then(() => {
-  // Clean up temp files older than 30 days — sessions may resume after server restart,
-  // so we can't delete everything. Only prune genuinely stale files.
+  // Clean up attached files older than 30 days — sessions may resume after restart,
+  // so recent files must survive. Check individual file age, remove empty dirs after.
   try {
     const attachRoot = '/tmp/wormhole-attach';
     if (existsSync(attachRoot)) {
       const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
-      const { readdirSync, statSync } = require('fs');
+      const { readdirSync, statSync, unlinkSync } = require('fs');
       for (const sessionDir of readdirSync(attachRoot)) {
         const dirPath = join(attachRoot, sessionDir);
         try {
           const stat = statSync(dirPath);
-          if (stat.isDirectory() && stat.mtimeMs < thirtyDaysAgo) {
-            rmSync(dirPath, { recursive: true, force: true });
+          if (!stat.isDirectory()) continue;
+          const files = readdirSync(dirPath);
+          for (const file of files) {
+            const filePath = join(dirPath, file);
+            try {
+              if (statSync(filePath).mtimeMs < thirtyDaysAgo) unlinkSync(filePath);
+            } catch { /* ignore per-file errors */ }
           }
+          // Remove session dir if empty
+          if (readdirSync(dirPath).length === 0) rmSync(dirPath, { force: true });
         } catch { /* ignore per-dir errors */ }
       }
     }
