@@ -401,17 +401,29 @@ cmd_statusline() {
       fi
       staged=$(git diff --cached --numstat 2>/dev/null | wc -l | tr -d ' ')
       modified=$(git diff --numstat 2>/dev/null | wc -l | tr -d ' ')
-      echo "${branch}|${staged}|${modified}" > "$cache_file"
+      # Detect worktree: git-dir differs from git-common-dir in worktrees
+      local git_dir git_common_dir worktree_name=""
+      git_dir=$(git rev-parse --git-dir 2>/dev/null)
+      git_common_dir=$(git rev-parse --git-common-dir 2>/dev/null)
+      if [ "$git_dir" != "$git_common_dir" ]; then
+        worktree_name="${git_dir##*/}"
+      fi
+      echo "${branch}|${staged}|${modified}|${worktree_name}" > "$cache_file"
     else
-      echo "||" > "$cache_file"
+      echo "|||" > "$cache_file"
     fi
   fi
 
-  local branch staged modified
-  IFS='|' read -r branch staged modified < "$cache_file"
+  local branch staged modified worktree_name
+  IFS='|' read -r branch staged modified worktree_name < "$cache_file"
 
   # Line 1: Model, project, git
   local line1="${CYAN}[${model}]${NC} ${dir_name}"
+
+  # Show worktree name if we're in a non-main worktree
+  if [ -n "$worktree_name" ]; then
+    line1="${line1} ${MAGENTA}⊕${worktree_name}${NC}"
+  fi
 
   if [ -n "$branch" ]; then
     local git_info=" | ${DIM}${branch}${NC}"

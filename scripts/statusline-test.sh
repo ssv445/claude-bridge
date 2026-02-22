@@ -214,13 +214,45 @@ run_test "Long duration formats" "$HIGH_COST" "300m 0s"
 run_test "No git dir graceful" "$HIGH_CONTEXT" "no-git-here"
 
 echo ""
-echo "--- T5: ANSI Color Balance ---"
+echo "--- T5: Worktree Detection ---"
+# Create a temporary worktree for testing
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+WORKTREE_NAME="test-worktree-$$"
+WORKTREE_PATH="${REPO_ROOT}/.worktrees/${WORKTREE_NAME}"
+git -C "$REPO_ROOT" worktree add "$WORKTREE_PATH" --detach HEAD --quiet 2>/dev/null
+
+WORKTREE_JSON="{
+  \"model\": {\"display_name\": \"Opus\"},
+  \"workspace\": {\"current_dir\": \"${WORKTREE_PATH}\"},
+  \"cost\": {\"total_cost_usd\": 1.00, \"total_duration_ms\": 60000, \"total_lines_added\": 5, \"total_lines_removed\": 2},
+  \"context_window\": {\"used_percentage\": 30}
+}"
+
+MAIN_REPO_JSON="{
+  \"model\": {\"display_name\": \"Opus\"},
+  \"workspace\": {\"current_dir\": \"${REPO_ROOT}\"},
+  \"cost\": {\"total_cost_usd\": 1.00, \"total_duration_ms\": 60000, \"total_lines_added\": 5, \"total_lines_removed\": 2},
+  \"context_window\": {\"used_percentage\": 30}
+}"
+
+# Clear cache so worktree detection runs fresh
+rm -f /tmp/statusline-git-* 2>/dev/null
+run_test "Worktree shows indicator" "$WORKTREE_JSON" "⊕${WORKTREE_NAME}"
+rm -f /tmp/statusline-git-* 2>/dev/null
+run_test "Main repo has no worktree indicator" "$MAIN_REPO_JSON" "claude-wormhole" "⊕"
+run_ansi_test "Worktree session colors balanced" "$WORKTREE_JSON"
+
+# Clean up temporary worktree
+git -C "$REPO_ROOT" worktree remove "$WORKTREE_PATH" --force 2>/dev/null
+
+echo ""
+echo "--- T6: ANSI Color Balance ---"
 run_ansi_test "Normal session colors balanced" "$FULL_JSON"
 run_ansi_test "Early session colors balanced" "$EARLY_SESSION"
 run_ansi_test "Critical session colors balanced" "$CRITICAL_CONTEXT"
 
 echo ""
-echo "--- T6: Performance ---"
+echo "--- T7: Performance ---"
 # Clear cache before cold test
 rm -f /tmp/statusline-git-* 2>/dev/null
 run_perf_test "Cold run (git + jq)" "$FULL_JSON" 500
