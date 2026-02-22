@@ -1,7 +1,8 @@
 import { createServer } from 'http';
-import { closeSync, existsSync, writeFileSync, mkdirSync, rmSync } from 'fs';
+import { closeSync, existsSync, mkdirSync, rmSync } from 'fs';
+import { writeFile } from 'fs/promises';
 import { parse } from 'url';
-import { join } from 'path';
+import { join, extname } from 'path';
 import { randomBytes } from 'crypto';
 import { execFileSync } from 'child_process';
 import next from 'next';
@@ -181,28 +182,33 @@ app.prepare().then(() => {
           }
 
           if (parsed.type === 'file_attach') {
-            try {
-              const { name, data } = parsed;
-              if (!name || !data) {
-                ws.send(JSON.stringify({ type: 'file_error', message: 'Missing name or data' }));
-                return;
+            // Async handler — don't block the event loop for large files
+            (async () => {
+              try {
+                const { name, data } = parsed;
+                // Server-side size cap: ~10MB decoded (base64 is ~33% larger)
+                if (!name || !data || data.length > 14 * 1024 * 1024) {
+                  ws.send(JSON.stringify({ type: 'file_error', message: 'Missing, empty, or oversized payload (max 10MB)' }));
+                  return;
+                }
+                // Sanitize extension — extname handles dotfiles correctly (.bashrc → '')
+                const rawExt = extname(name).slice(1).replace(/[^a-zA-Z0-9]/g, '');
+                const ext = rawExt ? '.' + rawExt : '';
+                const safeName = randomBytes(8).toString('hex') + ext;
+                const dir = join('/tmp', 'wormhole-attach', session);
+                mkdirSync(dir, { recursive: true });
+                const filePath = join(dir, safeName);
+                await writeFile(filePath, Buffer.from(data, 'base64'));
+                // Type the path directly into the PTY — avoids client round-trip
+                // which can fail if the WS connection drops (iOS heartbeat timeout).
+                // Space separates from existing text, @ tells Claude Code to reference the file.
+                ptyProcess.write(` @${filePath} `);
+                ws.send(JSON.stringify({ type: 'file_saved', path: filePath, originalName: name }));
+              } catch (err) {
+                const message = err instanceof Error ? err.message : 'File save failed';
+                ws.send(JSON.stringify({ type: 'file_error', message }));
               }
-              // Sanitize: keep extension, random hex prefix
-              const ext = name.includes('.') ? '.' + name.split('.').pop()!.replace(/[^a-zA-Z0-9]/g, '') : '';
-              const safeName = randomBytes(8).toString('hex') + ext;
-              const dir = join('/tmp', 'wormhole-attach', session);
-              mkdirSync(dir, { recursive: true });
-              const filePath = join(dir, safeName);
-              writeFileSync(filePath, Buffer.from(data, 'base64'));
-              // Type the path directly into the PTY — avoids client round-trip
-              // which can fail if the WS connection drops (iOS heartbeat timeout).
-              // Space separates from existing text, @ tells Claude Code to reference the file.
-              ptyProcess.write(` @${filePath} `);
-              ws.send(JSON.stringify({ type: 'file_saved', path: filePath, originalName: name }));
-            } catch (err) {
-              const message = err instanceof Error ? err.message : 'File save failed';
-              ws.send(JSON.stringify({ type: 'file_error', message }));
-            }
+            })();
             return;
           }
 

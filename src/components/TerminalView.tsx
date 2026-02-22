@@ -235,6 +235,9 @@ export function TerminalView({
       const base64 = (reader.result as string).split(',')[1];
       sendFileBase64(file.name, base64);
     };
+    reader.onerror = () => {
+      setAttachStatus('idle');
+    };
     reader.readAsDataURL(file);
     // Reset so selecting the same file again still triggers onChange
     e.target.value = '';
@@ -503,6 +506,7 @@ export function TerminalView({
       };
 
       ws.onclose = () => {
+        setAttachStatus('idle');
         if (intentionalCloseRef.current || disposed) return;
         scheduleReconnect(term);
       };
