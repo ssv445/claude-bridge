@@ -194,6 +194,9 @@ export function TerminalView({
         wsRef.current.send(text);
         return;
       }
+      // readText() succeeded but returned empty — clipboard may have image
+      // Send Ctrl+V for Claude Code's image paste
+      wsRef.current?.send('\x16');
     } catch {
       // Clipboard API denied (always on iOS Safari) — open compose overlay
       // so user can paste into a textarea where iOS allows it
@@ -204,8 +207,7 @@ export function TerminalView({
     openComposeForPaste();
   }, [openComposeForPaste]);
 
-  // File attach: tries clipboard image first (iOS screenshots/photos),
-  // falls back to file picker if no image in clipboard or permission denied.
+  // File attach: opens native file picker directly.
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [attachStatus, setAttachStatus] = useState<'idle' | 'uploading'>('idle');
 
