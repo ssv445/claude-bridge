@@ -160,7 +160,9 @@ export function TerminalView({
   const composeTextRef = useRef('');
   const speechRef = useRef<SpeechRecognitionInstance | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  // When compose opens for paste (not voice), don't append Enter on send
+  // When compose opens for paste (not voice), don't append Enter on send.
+  // State drives the placeholder; ref is read in closeCompose to avoid stale closures.
+  const [composeMode, setComposeMode] = useState<'voice' | 'paste'>('voice');
   const composeModeRef = useRef<'voice' | 'paste'>('voice');
 
   // Selection mode state (mobile long-press to select text)
@@ -177,6 +179,14 @@ export function TerminalView({
   // On iOS Safari where readText() always throws NotAllowedError, opens
   // the compose overlay so the user can paste into a <textarea> (iOS
   // allows native paste into input fields), then send via WebSocket.
+  const openComposeForPaste = useCallback(() => {
+    composeModeRef.current = 'paste';
+    setComposeMode('paste');
+    setShowCompose(true);
+    setComposeText('');
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  }, []);
+
   const handlePaste = useCallback(async () => {
     try {
       const text = await navigator.clipboard.readText();
@@ -187,23 +197,67 @@ export function TerminalView({
     } catch {
       // Clipboard API denied (always on iOS Safari) — open compose overlay
       // so user can paste into a textarea where iOS allows it
-      composeModeRef.current = 'paste';
-      setShowCompose(true);
-      setComposeText('');
-      requestAnimationFrame(() => textareaRef.current?.focus());
+      openComposeForPaste();
       return;
     }
     // Empty clipboard — also open compose as fallback
-    composeModeRef.current = 'paste';
-    setShowCompose(true);
-    setComposeText('');
-    requestAnimationFrame(() => textareaRef.current?.focus());
+    openComposeForPaste();
+  }, [openComposeForPaste]);
+
+  // File attach: tries clipboard image first (iOS screenshots/photos),
+  // falls back to file picker if no image in clipboard or permission denied.
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [attachStatus, setAttachStatus] = useState<'idle' | 'uploading'>('idle');
+
+  const sendFileBase64 = useCallback((name: string, base64: string) => {
+    if (wsRef.current?.readyState !== WebSocket.OPEN) return;
+    setAttachStatus('uploading');
+    wsRef.current.send(JSON.stringify({ type: 'file_attach', name, data: base64 }));
   }, []);
 
-  // Image paste: sends Ctrl+V so Claude Code can handle image from clipboard
-  const handleImagePaste = useCallback(() => {
-    wsRef.current?.send('\x16');
-  }, []);
+  const handleFileSelected = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // 10MB limit
+    if (file.size > 10 * 1024 * 1024) {
+      alert('File too large (max 10MB)');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      // result is "data:<mime>;base64,<data>" — extract the base64 part
+      const base64 = (reader.result as string).split(',')[1];
+      sendFileBase64(file.name, base64);
+    };
+    reader.readAsDataURL(file);
+    // Reset so selecting the same file again still triggers onChange
+    e.target.value = '';
+  }, [sendFileBase64]);
+
+  const handleFileAttach = useCallback(async () => {
+    // Try clipboard image first (iOS screenshots, copied photos)
+    try {
+      const items = await navigator.clipboard.read();
+      for (const item of items) {
+        const imageType = item.types.find(t => t === 'image/png' || t === 'image/jpeg');
+        if (imageType) {
+          const blob = await item.getType(imageType);
+          const reader = new FileReader();
+          reader.onload = () => {
+            const base64 = (reader.result as string).split(',')[1];
+            const ext = imageType === 'image/jpeg' ? 'jpg' : 'png';
+            sendFileBase64(`clipboard.${ext}`, base64);
+          };
+          reader.readAsDataURL(blob);
+          return;
+        }
+      }
+    } catch {
+      // Clipboard API denied or not available — fall through to file picker
+    }
+    // No clipboard image found — open file picker
+    fileInputRef.current?.click();
+  }, [sendFileBase64]);
 
   const startListening = useCallback(async () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -287,6 +341,7 @@ export function TerminalView({
 
   const openCompose = useCallback(() => {
     composeModeRef.current = 'voice';
+    setComposeMode('voice');
     setShowCompose(true);
     setComposeText('');
     startListening();
@@ -415,7 +470,29 @@ export function TerminalView({
       };
 
       ws.onmessage = (e) => {
-        term.write(forceTextPresentation(e.data));
+        // Check for JSON control messages from server (file_saved, file_error)
+        const raw = e.data;
+        if (typeof raw === 'string' && raw.startsWith('{')) {
+          try {
+            const msg = JSON.parse(raw);
+            if (msg.type === 'file_saved') {
+              setAttachStatus('idle');
+              // Auto-type the file path at the cursor
+              if (wsRef.current?.readyState === WebSocket.OPEN) {
+                wsRef.current.send(msg.path);
+              }
+              return;
+            }
+            if (msg.type === 'file_error') {
+              setAttachStatus('idle');
+              term.write(`\r\n\x1b[31mAttach error: ${msg.message}\x1b[0m\r\n`);
+              return;
+            }
+          } catch {
+            // Not JSON — fall through to normal terminal write
+          }
+        }
+        term.write(forceTextPresentation(raw));
       };
 
       ws.onclose = () => {
@@ -831,7 +908,7 @@ export function TerminalView({
             ref={textareaRef}
             value={composeText}
             onChange={(e) => setComposeText(e.target.value)}
-            placeholder={composeModeRef.current === 'paste' ? 'Paste here, then tap Send' : 'Speak or type...'}
+            placeholder={composeMode === 'paste' ? 'Paste here, then tap Send' : 'Speak or type...'}
             rows={3}
             className="w-full bg-transparent text-gray-100 text-sm font-mono p-3 resize-none focus:outline-none placeholder-gray-500"
             style={{ maxHeight: '8rem' }}
@@ -884,6 +961,7 @@ export function TerminalView({
             where readText() always throws NotAllowedError. Uses onPointerDown
             WITHOUT preventDefault() to preserve user activation for clipboard API. */}
         <button
+          // No preventDefault — preserves user activation required for clipboard.readText()
           onPointerDown={(e) => { e.stopPropagation(); handlePaste(); }}
           className="w-11 h-11 flex items-center justify-center text-gray-300 active:text-white"
           title="Paste text"
@@ -892,17 +970,30 @@ export function TerminalView({
             <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
           </svg>
         </button>
-        {/* Image paste — sends Ctrl+V so Claude Code handles image from clipboard */}
+        {/* File attach — tries clipboard image, falls back to file picker */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*,.txt,.md,.json,.csv,.pdf,.py,.js,.ts,.tsx"
+          className="hidden"
+          onChange={handleFileSelected}
+        />
         <button
-          onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); handleImagePaste(); }}
+          onPointerDown={(e) => { e.stopPropagation(); handleFileAttach(); }}
           className="w-11 h-11 flex items-center justify-center text-gray-300 active:text-white"
-          title="Paste image (Ctrl+V)"
+          title="Attach file"
+          disabled={attachStatus === 'uploading'}
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-            <circle cx="8.5" cy="8.5" r="1.5" />
-            <polyline points="21 15 16 10 5 21" />
-          </svg>
+          {attachStatus === 'uploading' ? (
+            <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+          ) : (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+              <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48" />
+            </svg>
+          )}
         </button>
         {/* Mic — opens compose overlay with voice input */}
         <button

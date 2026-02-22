@@ -1,6 +1,8 @@
 import { createServer } from 'http';
-import { closeSync, existsSync } from 'fs';
+import { closeSync, existsSync, writeFileSync, mkdirSync, rmSync } from 'fs';
 import { parse } from 'url';
+import { join } from 'path';
+import { randomBytes } from 'crypto';
 import { execFileSync } from 'child_process';
 import next from 'next';
 import { WebSocketServer, WebSocket } from 'ws';
@@ -133,6 +135,8 @@ app.prepare().then(() => {
         } catch { /* already closed */ }
         leakedMasterFd = null;
       }
+      // Clean up temp files for this session
+      try { rmSync(join('/tmp', 'wormhole-attach', session), { recursive: true, force: true }); } catch { /* ignore */ }
       if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
         ws.close();
       }
@@ -154,6 +158,28 @@ app.prepare().then(() => {
           const parsed = JSON.parse(str);
           if (parsed.type === 'resize' && parsed.cols && parsed.rows) {
             ptyProcess.resize(parsed.cols, parsed.rows);
+            return;
+          }
+
+          if (parsed.type === 'file_attach') {
+            try {
+              const { name, data } = parsed;
+              if (!name || !data) {
+                ws.send(JSON.stringify({ type: 'file_error', message: 'Missing name or data' }));
+                return;
+              }
+              // Sanitize: keep extension, random hex prefix
+              const ext = name.includes('.') ? '.' + name.split('.').pop()!.replace(/[^a-zA-Z0-9]/g, '') : '';
+              const safeName = randomBytes(8).toString('hex') + ext;
+              const dir = join('/tmp', 'wormhole-attach', session);
+              mkdirSync(dir, { recursive: true });
+              const filePath = join(dir, safeName);
+              writeFileSync(filePath, Buffer.from(data, 'base64'));
+              ws.send(JSON.stringify({ type: 'file_saved', path: filePath, originalName: name }));
+            } catch (err) {
+              const message = err instanceof Error ? err.message : 'File save failed';
+              ws.send(JSON.stringify({ type: 'file_error', message }));
+            }
             return;
           }
         } catch {

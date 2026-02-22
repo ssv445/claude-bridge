@@ -65,26 +65,37 @@ test.describe('Text Paste — Mobile', () => {
     const textarea = page.locator('textarea[placeholder="Paste here, then tap Send"]');
     await expect(textarea).toBeVisible({ timeout: 2000 });
   });
-});
 
-test.describe('Image Paste — Mobile', () => {
-  test.beforeEach(async ({ page }) => {
-    await stubBrowserAPIs(page);
-  });
-
-  test('image paste button sends Ctrl+V', async ({ page }, testInfo) => {
+  test('compose overlay Send in paste mode → sends raw text without Enter', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile-webkit', 'Mobile only');
+
+    await page.addInitScript(() => {
+      navigator.clipboard.readText = async () => {
+        throw new DOMException('Clipboard access denied', 'NotAllowedError');
+      };
+    });
 
     const sent = await setupTerminalMocks(page);
     await openTerminalSession(page);
 
+    // Open compose overlay via paste button
+    await pointerDown(page, 'button[title="Paste text"]');
+    const textarea = page.locator('textarea[placeholder="Paste here, then tap Send"]');
+    await expect(textarea).toBeVisible({ timeout: 2000 });
+
+    // Type text and tap Send
+    await textarea.fill('pasted content');
     clearMessages(sent);
-    await pointerDown(page, 'button[title="Paste image (Ctrl+V)"]');
+    await page.click('button:has-text("Send")');
     await waitForMessages(page, 500);
 
-    expect(sent).toContain('\x16');
+    // Paste mode sends raw text — no trailing \r
+    expect(sent).toContain('pasted content');
+    expect(sent).not.toContain('pasted content\r');
   });
 });
+
+// Image paste tests removed — replaced by file attach (see attach.spec.ts)
 
 test.describe('Paste — Desktop', () => {
   test.beforeEach(async ({ page }) => {
@@ -146,8 +157,8 @@ test.describe('Paste — Desktop', () => {
     await openTerminalSession(page);
 
     const textPasteBtn = page.locator('button[title="Paste text"]');
-    const imagePasteBtn = page.locator('button[title="Paste image (Ctrl+V)"]');
+    const attachBtn = page.locator('button[title="Attach file"]');
     await expect(textPasteBtn).not.toBeVisible();
-    await expect(imagePasteBtn).not.toBeVisible();
+    await expect(attachBtn).not.toBeVisible();
   });
 });
