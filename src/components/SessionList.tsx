@@ -163,16 +163,12 @@ export function SessionList({
     return result;
   };
 
-  // Split sessions into attached and available
-  const attachedSessions = sessions.filter(s => openTabs.includes(s.name));
-  const availableSessions = sessions.filter(s => !openTabs.includes(s.name));
-
-  // Group both sets
-  const attachedGroups = groupByDirectory(attachedSessions);
-  const availableGroups = groupByDirectory(availableSessions);
+  // Single unified list grouped by directory, sorted by recent activity
+  const allGroups = groupByDirectory(sessions);
+  allGroups.sort((a, b) => b.mostRecentActivity.getTime() - a.mostRecentActivity.getTime());
 
   // Strip longest common directory prefix across all groups for shorter display
-  const allDirs = [...attachedGroups, ...availableGroups].map(g => g.dir);
+  const allDirs = allGroups.map(g => g.dir);
   let commonPrefix = '';
   if (allDirs.length > 1) {
     const parts = allDirs[0].split('/');
@@ -191,9 +187,6 @@ export function SessionList({
     }
     return dir;
   };
-
-  // Sort available groups by most recent activity
-  availableGroups.sort((a, b) => b.mostRecentActivity.getTime() - a.mostRecentActivity.getTime());
 
   const commitRename = async (oldName: string, newName: string) => {
     const trimmed = newName.trim();
@@ -410,62 +403,24 @@ export function SessionList({
   };
 
   return (
-    <div className="space-y-3">
-      {/* Attached section */}
-      {attachedGroups.length > 0 && (
-        <div>
-          <div className="text-xs font-semibold text-muted uppercase tracking-wider px-2 mb-2">
-            Attached
+    <div className="space-y-2">
+      {allGroups.map(group => (
+        <div key={group.dir}>
+          <div className="flex items-center justify-between text-xs text-muted px-2 mb-1">
+            <span className="font-mono truncate">{shortDir(group.dir)}</span>
+            {onNewInDir && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onNewInDir(group.dir); }}
+                className="text-muted hover:text-primary shrink-0 ml-1"
+                title="New session in this folder"
+              >+</button>
+            )}
           </div>
-          <div className="space-y-2">
-            {attachedGroups.map(group => (
-              <div key={group.dir}>
-                <div className="flex items-center justify-between text-xs text-muted px-2 mb-1">
-                  <span className="font-mono truncate">{shortDir(group.dir)}</span>
-                  {onNewInDir && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onNewInDir(group.dir); }}
-                      className="text-muted hover:text-primary shrink-0 ml-1"
-                      title="New session in this folder"
-                    >+</button>
-                  )}
-                </div>
-                <div className="space-y-1">
-                  {group.sessions.map(renderSession)}
-                </div>
-              </div>
-            ))}
+          <div className="space-y-1">
+            {group.sessions.map(renderSession)}
           </div>
         </div>
-      )}
-
-      {/* Available section */}
-      {availableGroups.length > 0 && (
-        <div>
-          <div className="text-xs font-semibold text-muted uppercase tracking-wider px-2 mb-2">
-            Available
-          </div>
-          <div className="space-y-2">
-            {availableGroups.map(group => (
-              <div key={group.dir}>
-                <div className="flex items-center justify-between text-xs text-muted px-2 mb-1">
-                  <span className="font-mono truncate">{shortDir(group.dir)}</span>
-                  {onNewInDir && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onNewInDir(group.dir); }}
-                      className="text-muted hover:text-primary shrink-0 ml-1"
-                      title="New session in this folder"
-                    >+</button>
-                  )}
-                </div>
-                <div className="space-y-1">
-                  {group.sessions.map(renderSession)}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      ))}
     </div>
   );
 }
