@@ -1,6 +1,6 @@
 // src/app/api/projects/route.ts
 import { NextResponse } from 'next/server';
-import { readdir, access } from 'fs/promises';
+import { readdir, stat } from 'fs/promises';
 import { join, relative } from 'path';
 
 function expandHome(dir: string): string {
@@ -31,8 +31,7 @@ async function findGitProjects(base: string, maxDepth: number): Promise<string[]
     }
 
     // No .git here — recurse into visible, non-node_modules subdirs
-    // entry.isDirectory() returns false for symlinks when using withFileTypes,
-    // so symlinks are naturally excluded without needing lstat
+    // isSymbolicLink() excludes symlinked dirs so we don't escape the tree
     for (const entry of entries) {
       if (!entry.isDirectory() || entry.isSymbolicLink()) continue;
       if (entry.name.startsWith('.')) continue;
@@ -54,9 +53,12 @@ export async function GET() {
 
   const base = expandHome(raw).replace(/\/+$/, '');
 
-  // Verify directory exists
+  // Verify path exists and is a directory
   try {
-    await access(base);
+    const st = await stat(base);
+    if (!st.isDirectory()) {
+      return NextResponse.json({ baseDir: null, projects: [] });
+    }
   } catch {
     return NextResponse.json({ baseDir: null, projects: [] });
   }

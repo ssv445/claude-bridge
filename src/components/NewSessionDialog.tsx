@@ -73,16 +73,19 @@ export function NewSessionDialog({
     if (!selectedProject) return;
     const folderName = selectedProject.split('/').pop() ?? selectedProject;
     const prefix = sanitizeName(folderName);
+    const controller = new AbortController();
 
-    fetch('/api/sessions')
+    fetch('/api/sessions', { signal: controller.signal })
       .then((r) => r.json())
       .then((sessions: { name: string }[]) => {
         const names = sessions.map((s) => s.name);
         setName(nextSessionName(prefix, names));
       })
-      .catch(() => {
-        setName(`${prefix}-1`);
+      .catch((err) => {
+        if (err.name !== 'AbortError') setName(`${prefix}-1`);
       });
+
+    return () => controller.abort();
   }, [selectedProject]);
 
   const hasProjects = projectsData && projectsData.baseDir && projectsData.projects.length > 0;
@@ -159,6 +162,7 @@ export function NewSessionDialog({
             <select
               value={selectedProject}
               onChange={(e) => setSelectedProject(e.target.value)}
+              autoFocus
               className="w-full px-3 py-2 bg-input-bg border border-input-border rounded-md text-sm font-mono focus:outline-none focus:border-input-focus"
             >
               <option value="">Select a project...</option>
@@ -191,7 +195,7 @@ export function NewSessionDialog({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="my-session"
-            autoFocus
+            autoFocus={!hasProjects}
             className="w-full px-3 py-2 bg-input-bg border border-input-border rounded-md text-sm font-mono focus:outline-none focus:border-input-focus"
           />
         </div>
