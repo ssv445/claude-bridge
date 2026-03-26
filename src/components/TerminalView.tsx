@@ -727,7 +727,17 @@ export function TerminalView({
 
       const termContainer = termRef.current;
       // Right-click: copy selection if any, otherwise enter selection mode.
-      // Suppresses native context menu inside the terminal.
+      // Intercept mousedown (button=2) in capture phase to prevent xterm.js
+      // from sending the right-click as an SGR mouse event to tmux, which
+      // would trigger tmux's own context menu.
+      const onRightMouseDown = (e: MouseEvent) => {
+        if (e.button === 2) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      };
+      termContainer.addEventListener('mousedown', onRightMouseDown, { capture: true });
+
       const onContextMenu = (e: MouseEvent) => {
         e.preventDefault();
         const sel = term.getSelection();
@@ -802,6 +812,7 @@ export function TerminalView({
       return () => {
         document.removeEventListener('visibilitychange', handleVisibilityChange);
         window.removeEventListener('focus', handleFocus);
+        termContainer.removeEventListener('mousedown', onRightMouseDown, { capture: true });
         termContainer.removeEventListener('contextmenu', onContextMenu);
         termContainer.removeEventListener('touchstart', onTouchStart, { capture: true });
         termContainer.removeEventListener('touchmove', onTouchMove, { capture: true });
