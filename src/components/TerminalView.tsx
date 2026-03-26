@@ -390,9 +390,10 @@ export function TerminalView({
     if (!term) return;
     // Save current mouse tracking mode so we can restore it
     savedMouseModeRef.current = term.modes.mouseTrackingMode;
-    if (savedMouseModeRef.current === 'none') return; // nothing to disable
     // Disable mouse reporting locally in xterm.js (not sent to tmux).
     // This re-enables xterm.js's built-in SelectionService.
+    // Always send disable sequences even if mode reads 'none' — the mode
+    // can lag behind actual state, and the sequences are harmless no-ops.
     term.write('\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l');
     setSelectionMode(true);
     selectionModeRef.current = true;
@@ -414,10 +415,9 @@ export function TerminalView({
       drag: '\x1b[?1002h',
       any: '\x1b[?1003h',
     };
-    const decset = modeMap[savedMouseModeRef.current];
-    if (decset) {
-      term.write(decset + '\x1b[?1006h'); // also re-enable SGR encoding
-    }
+    // Default to 'any' (full mouse tracking) since Claude Code uses it
+    const decset = modeMap[savedMouseModeRef.current] || modeMap['any'];
+    term.write(decset + '\x1b[?1006h'); // also re-enable SGR encoding
     setSelectionMode(false);
     selectionModeRef.current = false;
   }, []);
@@ -744,8 +744,11 @@ export function TerminalView({
       termContainer.addEventListener('touchmove', onTouchMove, { capture: true, passive: false });
       termContainer.addEventListener('touchend', onTouchEnd, { capture: true, passive: true });
 
-      // Use refs so handlers always send on the latest WS
+      // Use refs so handlers always send on the latest WS.
+      // In selection mode, suppress mouse event sequences so the server
+      // doesn't see clicks/drags and respond with re-enable sequences.
       term.onData((data) => {
+        if (selectionModeRef.current && /^\x1b\[</.test(data)) return;
         if (wsRef.current?.readyState === WebSocket.OPEN) {
           wsRef.current.send(data);
         }
