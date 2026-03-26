@@ -50,6 +50,68 @@ async function clearNotifications(session?: string) {
   }
 }
 
+function SessionsMenu({ onRestartAll }: { onRestartAll: () => void }) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useCallback((node: HTMLDivElement | null) => {
+    if (!node) return;
+    const handleClick = (e: MouseEvent) => {
+      if (!node.contains(e.target as Node)) setOpen(false);
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', handleClick);
+    document.addEventListener('keydown', handleKey);
+    // cleanup via unmount — component re-renders are cheap
+  }, []);
+
+  const restartAll = async () => {
+    setOpen(false);
+    try {
+      const res = await fetch('/api/sessions');
+      const sessions: { name: string }[] = await res.json();
+      await Promise.allSettled(
+        sessions.map((s) =>
+          fetch('/api/sessions', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'restart', name: s.name }),
+          })
+        )
+      );
+      onRestartAll();
+    } catch {
+      // silent
+    }
+  };
+
+  return (
+    <div className="relative" ref={open ? menuRef : undefined}>
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-6 h-6 flex items-center justify-center text-muted hover:text-primary rounded transition-colors"
+        title="Session actions"
+      >
+        <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="currentColor">
+          <circle cx="8" cy="3" r="1.5" />
+          <circle cx="8" cy="8" r="1.5" />
+          <circle cx="8" cy="13" r="1.5" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 w-36 bg-surface border border-border rounded-lg shadow-lg z-50 py-1 text-sm">
+          <button
+            onClick={restartAll}
+            className="w-full text-left px-3 py-2.5 text-secondary hover:bg-surface-hover transition-colors normal-case"
+          >
+            Restart All
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Home() {
   const [openTabs, setOpenTabs] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<string | null>(null);
@@ -254,8 +316,9 @@ export default function Home() {
       </div>
 
       <div className="flex-1 overflow-y-auto py-3 px-2">
-        <div className="px-2 pb-2 text-xs font-medium text-muted uppercase tracking-wider">
+        <div className="px-2 pb-2 text-xs font-medium text-muted uppercase tracking-wider flex items-center justify-between">
           Sessions
+          <SessionsMenu onRestartAll={() => setRefreshKey((k) => k + 1)} />
         </div>
         <SessionList
           refreshKey={refreshKey}
