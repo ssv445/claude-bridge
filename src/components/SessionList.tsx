@@ -283,8 +283,14 @@ export function SessionList({
             )}
           </div>
           <div className="text-xs text-muted ml-3 truncate flex items-center gap-1.5">
+            {s.claudeState === 'busy' && (
+              <span className="text-green-400" title="Working">working</span>
+            )}
             {s.claudeState === 'waiting' && (
               <span className="text-yellow-400" title="Waiting for input">waiting</span>
+            )}
+            {s.claudeState === 'idle' && (
+              <span className="text-muted" title="Idle">idle</span>
             )}
             {s.claudeState === 'error' && (
               <span className="text-red-400" title="Error">error</span>
