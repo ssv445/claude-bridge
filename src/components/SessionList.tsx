@@ -279,7 +279,10 @@ export function SessionList({
             {s.paused && (
               <span className="text-blue-400" title="Frozen (SIGSTOP)">paused</span>
             )}
-            {!s.paused && s.claudeHint === 'idle' && (
+            {/* Only show "waiting" for the active tab — the one the user is
+                currently interacting with. Other idle sessions have completed
+                their work and don't need a status label. */}
+            {!s.paused && s.claudeHint === 'idle' && isActive && (
               <span className="text-yellow-400" title="Waiting for input">waiting</span>
             )}
             {!s.paused && s.claudeHint === 'busy' && (
