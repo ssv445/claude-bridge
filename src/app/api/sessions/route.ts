@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { listSessionsWithInfo, newSession, killSession, renameSession, pauseSession, resumeSession, restartClaudeSession } from '@/lib/tmux';
+import { listSessionsWithInfo, newSession, killSession, renameSession, restartClaudeSession } from '@/lib/tmux';
 
 export async function GET() {
   const sessions = await listSessionsWithInfo();
@@ -38,26 +38,8 @@ export async function PATCH(req: NextRequest) {
     }
   }
 
-  // Pause/resume actions
-  if (body.action === 'pause' || body.action === 'resume') {
-    const { name } = body;
-    if (!name || typeof name !== 'string') {
-      return NextResponse.json({ error: 'name is required' }, { status: 400 });
-    }
-    try {
-      if (body.action === 'pause') {
-        await pauseSession(name);
-      } else {
-        await resumeSession(name);
-      }
-      return NextResponse.json({ ok: true });
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : `Failed to ${body.action} session`;
-      return NextResponse.json({ error: msg }, { status: 500 });
-    }
-  }
+  // Rename action
 
-  // Rename action (existing)
   const { oldName, newName } = body;
   if (!oldName || !newName || typeof oldName !== 'string' || typeof newName !== 'string') {
     return NextResponse.json({ error: 'oldName and newName are required' }, { status: 400 });

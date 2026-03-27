@@ -9,8 +9,7 @@ interface SessionInfo {
   created: string;
   workingDir: string;
   lastActivity: string;
-  claudeHint: 'idle' | 'busy' | null;
-  paused: boolean;
+  claudeState: 'busy' | 'waiting' | 'idle' | 'error' | null;
 }
 
 export function SessionList({
@@ -40,7 +39,6 @@ export function SessionList({
   const [editValue, setEditValue] = useState('');
   const editInputRef = useRef<HTMLInputElement>(null);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
-  const [confirmingAction, setConfirmingAction] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const fetchSessions = useCallback(async () => {
@@ -67,13 +65,11 @@ export function SessionList({
     const handleClick = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setOpenMenu(null);
-        setConfirmingAction(null);
       }
     };
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setOpenMenu(null);
-        setConfirmingAction(null);
       }
     };
     document.addEventListener('mousedown', handleClick);
@@ -210,19 +206,6 @@ export function SessionList({
     setEditingSession(null);
   };
 
-  const handlePauseResume = async (name: string, action: 'pause' | 'resume') => {
-    try {
-      await fetch('/api/sessions', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, name }),
-      });
-      fetchSessions();
-    } catch {
-      // silent
-    }
-  };
-
   const handleRestart = async (name: string) => {
     try {
       await fetch('/api/sessions', {
@@ -233,6 +216,27 @@ export function SessionList({
       fetchSessions();
     } catch {
       // silent
+    }
+  };
+
+  // Status dot: pulsing green=busy, amber=waiting, red=error, hollow ring=idle/unknown
+  const dotClass = (s: SessionInfo) => {
+    switch (s.claudeState) {
+      case 'busy':    return 'bg-green-400 animate-pulse';
+      case 'waiting': return 'bg-yellow-400';
+      case 'error':   return 'bg-red-400';
+      case 'idle':
+      default:        return 'border border-muted bg-transparent';
+    }
+  };
+
+  const dotTitle = (s: SessionInfo) => {
+    switch (s.claudeState) {
+      case 'busy':    return 'Working';
+      case 'waiting': return 'Waiting for input';
+      case 'error':   return 'Error';
+      case 'idle':    return 'Idle';
+      default:        return 'Unknown';
     }
   };
 
@@ -256,18 +260,8 @@ export function SessionList({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <span
-              className={`w-2 h-2 rounded-full shrink-0 ${
-                s.paused
-                  ? 'bg-blue-400'                                    // Paused: solid blue
-                  : s.claudeHint === 'busy'
-                    ? 'bg-green-400 animate-pulse'                   // Busy: pulsing green
-                    : s.claudeHint === 'idle'
-                      ? 'bg-yellow-400'                              // Waiting: solid amber
-                      : 'border border-muted bg-transparent'         // Unknown/no state: hollow ring
-              }`}
-              title={
-                s.paused ? 'Paused' : s.claudeHint === 'busy' ? 'Working' : s.claudeHint === 'idle' ? 'Waiting for input' : 'Idle'
-              }
+              className={`w-2 h-2 rounded-full shrink-0 ${dotClass(s)}`}
+              title={dotTitle(s)}
             />
             {isEditing ? (
               <input
@@ -289,11 +283,11 @@ export function SessionList({
             )}
           </div>
           <div className="text-xs text-muted ml-3 truncate flex items-center gap-1.5">
-            {s.paused && (
-              <span className="text-blue-400" title="Frozen (SIGSTOP)">paused</span>
-            )}
-            {!s.paused && s.claudeHint === 'idle' && (
+            {s.claudeState === 'waiting' && (
               <span className="text-yellow-400" title="Waiting for input">waiting</span>
+            )}
+            {s.claudeState === 'error' && (
+              <span className="text-red-400" title="Error">error</span>
             )}
             {s.lastActivity}
           </div>
@@ -305,7 +299,6 @@ export function SessionList({
             onClick={(e) => {
               e.stopPropagation();
               setOpenMenu(isMenuOpen ? null : s.name);
-              setConfirmingAction(null);
             }}
             className="w-8 h-8 flex items-center justify-center text-muted hover:text-primary rounded transition-colors hover:bg-surface"
             title="Actions"
@@ -319,61 +312,6 @@ export function SessionList({
 
           {isMenuOpen && (
             <div className="absolute right-0 top-full mt-1 w-36 bg-surface border border-border rounded-lg shadow-lg z-50 py-1 text-sm">
-              {/* Pause / Resume */}
-              {s.paused ? (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handlePauseResume(s.name, 'resume');
-                    setOpenMenu(null);
-                  }}
-                  className="w-full text-left px-3 py-2.5 text-blue-400 hover:bg-surface-hover transition-colors"
-                >
-                  Resume
-                </button>
-              ) : confirmingAction === s.name ? (
-                <div className="px-3 py-2.5">
-                  <div className="text-yellow-400 text-xs mb-1.5">Session is busy!</div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handlePauseResume(s.name, 'pause');
-                        setOpenMenu(null);
-                        setConfirmingAction(null);
-                      }}
-                      className="text-red-400 hover:text-red-300 text-xs"
-                    >
-                      Pause anyway
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setConfirmingAction(null);
-                      }}
-                      className="text-muted hover:text-primary text-xs"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (s.claudeHint === 'busy') {
-                      setConfirmingAction(s.name);
-                    } else {
-                      handlePauseResume(s.name, 'pause');
-                      setOpenMenu(null);
-                    }
-                  }}
-                  className="w-full text-left px-3 py-2.5 text-secondary hover:bg-surface-hover transition-colors"
-                >
-                  Pause
-                </button>
-              )}
-
               {/* Detach — only if session is open in a tab */}
               {isOpen && (
                 <button

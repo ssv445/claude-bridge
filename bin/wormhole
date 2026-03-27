@@ -346,11 +346,11 @@ cmd_notify() {
   tmux_session=$(tmux display-message -p '#{session_name}' 2>/dev/null || echo "unknown")
 
   # Write Claude state file for sidebar status indicators.
-  # State transitions: UserPromptSubmit→busy, Stop→idle, permission_prompt→permission
+  # State transitions: UserPromptSubmit→busy, Stop→waiting, idle_prompt→idle
   local state_file="/tmp/wormhole-claude-state-${tmux_session}"
   case "$hook_event" in
     UserPromptSubmit) echo "busy" > "$state_file" ;;
-    Stop)             echo "idle" > "$state_file" ;;
+    Stop)             echo "waiting" > "$state_file" ;;
     StopFailure)      echo "error" > "$state_file" ;;
     Notification)
       case "$notification_type" in
