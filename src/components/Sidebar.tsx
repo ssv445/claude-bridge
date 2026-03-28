@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { SessionList } from '@/components/SessionList';
 import { useViewport } from '@/hooks/useViewport';
 import { toggleFullscreen } from '@/lib/viewport';
+import { version as PKG_VERSION } from '../../package.json';
 
 interface SidebarProps {
   theme: string;
@@ -162,7 +163,7 @@ export function Sidebar({
                 <div className="border-t border-border my-1" />
 
                 <div className="px-3 py-1.5 text-[10px] text-muted font-mono">
-                  v1.0.0 · b{process.env.NEXT_PUBLIC_BUILD_VERSION?.slice(-6) ?? '?'}
+                  v{PKG_VERSION} · b{process.env.NEXT_PUBLIC_BUILD_VERSION?.slice(-6) ?? '?'}
                 </div>
               </div>
             )}
