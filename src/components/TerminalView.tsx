@@ -530,9 +530,14 @@ export function TerminalView({
         term.write(forceTextPresentation(raw));
       };
 
-      ws.onclose = () => {
+      ws.onclose = (ev) => {
         setAttachStatus('idle');
         if (intentionalCloseRef.current || disposed) return;
+        // 1008 = session not found — don't retry, go back to session list
+        if (ev.code === 1008) {
+          onDisconnect();
+          return;
+        }
         scheduleReconnect(term);
       };
 
