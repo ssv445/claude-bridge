@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { StatusIcon } from '@/components/StatusIcon';
 
 interface SessionInfo {
   name: string;
@@ -9,7 +10,7 @@ interface SessionInfo {
   created: string;
   workingDir: string;
   lastActivity: string;
-  claudeState: 'busy' | 'waiting' | 'idle' | 'error' | null;
+  claudeState: 'busy' | 'permission' | 'waiting' | 'idle' | 'error' | null;
 }
 
 export function SessionList({
@@ -219,27 +220,6 @@ export function SessionList({
     }
   };
 
-  // Status dot: pulsing green=busy, amber=waiting, red=error, hollow ring=idle/unknown
-  const dotClass = (s: SessionInfo) => {
-    switch (s.claudeState) {
-      case 'busy':    return 'bg-green-400 animate-pulse';
-      case 'waiting': return 'bg-yellow-400';
-      case 'error':   return 'bg-red-400';
-      case 'idle':
-      default:        return 'border border-muted bg-transparent';
-    }
-  };
-
-  const dotTitle = (s: SessionInfo) => {
-    switch (s.claudeState) {
-      case 'busy':    return 'Working';
-      case 'waiting': return 'Waiting for input';
-      case 'error':   return 'Error';
-      case 'idle':    return 'Idle';
-      default:        return 'Unknown';
-    }
-  };
-
   // Render a session item
   const renderSession = (s: SessionInfo) => {
     const isOpen = openTabs.includes(s.name);
@@ -259,9 +239,9 @@ export function SessionList({
       >
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <span
-              className={`w-2 h-2 rounded-full shrink-0 ${dotClass(s)}`}
-              title={dotTitle(s)}
+            <StatusIcon
+              state={s.claudeState}
+              attached={openTabs.includes(s.name)}
             />
             {isEditing ? (
               <input
@@ -284,16 +264,19 @@ export function SessionList({
           </div>
           <div className="text-[13px] md:text-xs text-muted ml-3 truncate flex items-center gap-1.5">
             {s.claudeState === 'busy' && (
-              <span className="text-green-400" title="Working">working</span>
+              <span className="text-blue-400">working</span>
+            )}
+            {s.claudeState === 'permission' && (
+              <span className="text-yellow-400">permission</span>
             )}
             {s.claudeState === 'waiting' && (
-              <span className="text-yellow-400" title="Waiting for input">waiting</span>
+              <span className="text-amber-400">input needed</span>
             )}
             {s.claudeState === 'idle' && (
-              <span className="text-muted" title="Idle">idle</span>
+              <span className="text-green-400">idle</span>
             )}
             {s.claudeState === 'error' && (
-              <span className="text-red-400" title="Error">error</span>
+              <span className="text-red-400">error</span>
             )}
             {s.lastActivity}
           </div>
