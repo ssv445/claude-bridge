@@ -482,7 +482,8 @@ export function TerminalView({
     }
   }, [visible]);
 
-  // When restoring, poll until tmux session is live before connecting WebSocket
+  // When restoring, poll until Claude Code is running before connecting WebSocket.
+  // Claude's statusline hook writes claudeState — wait for it to become non-null.
   useEffect(() => {
     if (!restoring) return;
     setWaitingForSession(true);
@@ -492,8 +493,10 @@ export function TerminalView({
       while (!cancelled) {
         try {
           const res = await fetch('/api/sessions');
-          const sessions: Array<{ name: string }> = await res.json();
-          if (sessions.find((s) => s.name === session)) {
+          const sessions: Array<{ name: string; claudeState: string | null }> = await res.json();
+          const found = sessions.find((s) => s.name === session);
+          // Session exists AND Claude has started (claudeState written by statusline hook)
+          if (found && found.claudeState) {
             setWaitingForSession(false);
             return;
           }
@@ -502,7 +505,8 @@ export function TerminalView({
       }
     };
     poll();
-    // Timeout — stop waiting after 60s
+    // Timeout — connect anyway after 60s (Claude may not have started yet, but
+    // the tmux session is there so the WebSocket can still attach)
     const timeout = setTimeout(() => {
       cancelled = true;
       setWaitingForSession(false);
