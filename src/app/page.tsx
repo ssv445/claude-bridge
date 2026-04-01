@@ -328,6 +328,7 @@ export default function Home() {
               session={name}
               visible={name === activeTab}
               theme={theme}
+              restoring={restoringSet.has(name)}
               onDisconnect={() => detachSession(name)}
             />
           ))
