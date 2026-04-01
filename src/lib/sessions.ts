@@ -21,6 +21,7 @@ export const WORMHOLE_DIR = join(homedir(), '.wormhole');
 export const SESSIONS_FILE = join(WORMHOLE_DIR, 'sessions.json');
 const STALE_DAYS = 7;
 const STALE_SECONDS = STALE_DAYS * 24 * 60 * 60;
+const SAFE_NAME_RE = /^[a-zA-Z0-9_-]+$/;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -173,10 +174,18 @@ export async function resurrectSession(
   session: SavedSession,
 ): Promise<boolean> {
   // Prevent concurrent resurrection of the same session
-  if (resurrecting.has(name)) return false;
+  if (resurrecting.has(name)) return true; // already in progress — signal "being handled"
   resurrecting.add(name);
 
   try {
+    // Validate session name to prevent unexpected tmux behavior
+    if (!SAFE_NAME_RE.test(name)) return false;
+
+    // Validate claudeSessionId format before interpolating into shell command
+    if (session.claudeSessionId && !SAFE_NAME_RE.test(session.claudeSessionId)) {
+      session.claudeSessionId = null;
+    }
+
     // Validate working directory still exists
     if (!existsSync(session.workingDir)) {
       // Directory is gone — remove the stale entry and give up
