@@ -19,7 +19,7 @@ claude-wormhole/
 ├── src/app/                  # Next.js pages (session list, terminal)
 ├── public/                   # PWA manifest + icons
 ├── scripts/
-│   ├── tmux.conf             # tmux config with resurrect + continuum
+│   ├── tmux.conf             # tmux config (mouse, WheelUpPane override, TPM)
 │   ├── com.claude-wormhole.web.plist  # launchd plist
 │   └── statusline-test.sh    # Test harness for statusline
 ├── docs/
