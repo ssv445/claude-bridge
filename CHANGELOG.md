@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.5.0] - 2026-04-08
+
+### Features
+
+- feat: session recovery — persist all active tmux/Claude sessions to `~/.wormhole/sessions.json` and restore them on page load like Chrome tabs
+- feat: new `src/lib/sessions.ts` persistence layer — read/write/sync/remove/rename/resurrect with a single-writer model (server-side only)
+- feat: 1-minute server-side session sync interval (`server.ts`)
+- feat: `GET /api/sessions` merges live sessions with the saved file and auto-resurrects dead-but-recently-seen ones via `cld --resume`
+- feat: `DELETE` and `PATCH /api/sessions` handlers update `sessions.json` (remove on kill, rename key)
+- feat: auto-open saved tabs on page load with `?session=X` URL param precedence
+- feat: `restoring` state in `TerminalView` — shows a "Restoring session..." indicator and polls `claudeState` before opening the WebSocket, so the terminal doesn't attach to a half-started Claude
+
+### Bug Fixes
+
+- fix: recover from WebGL context loss and refresh on visibility change (#54)
+- fix: poll for `claudeState` before connecting restored-session WebSocket (avoids blank pane races)
+- fix: review round — `workingDir` validation, `claudeSessionId` injection guard, in-memory resurrection mutex, safer JSON serialization
+
+### Chores
+
+- chore: remove `tmux-resurrect` + `tmux-continuum` plugins from `scripts/tmux.conf` — session persistence is now owned by claude-wormhole itself, and the plugins were restoring dead `detached-run-claude-*` husks as interactive `cld` shells
+
 ## [1.3.0] - 2026-03-28
 
 ### Features
