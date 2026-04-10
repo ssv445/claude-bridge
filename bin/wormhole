@@ -705,13 +705,18 @@ cmd_release() {
   sed -i '' "s/\"version\": \"${current_version}\"/\"version\": \"${new_version}\"/" "$package_json"
 
   if [ -f "$changelog" ]; then
-    local temp
+    local temp entry_file
     temp=$(mktemp)
-    awk -v entry="$(echo -e "$entry")" '
-      /^# Changelog/ { print; print ""; print entry; found=1; next }
+    entry_file=$(mktemp)
+    echo -e "$entry" > "$entry_file"
+    # Insert the changelog entry after the "# Changelog" header.
+    # awk -v chokes on embedded newlines, so read entry from a temp file.
+    awk '
+      /^# Changelog/ { print; print ""; while ((getline line < "'"$entry_file"'") > 0) print line; found=1; next }
       { print }
     ' "$changelog" > "$temp"
     mv "$temp" "$changelog"
+    rm -f "$entry_file"
   else
     echo -e "# Changelog\n\n${entry}" > "$changelog"
   fi
